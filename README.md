@@ -10,9 +10,12 @@
 2. 파일 앱에서 열기 (브라우저로 열림) → 홈 화면에 추가하면 앱처럼 사용 가능
 
 방법 2 — **GitHub Pages 링크**
-저장소 Settings → Pages에서 배포 브랜치를 지정하면
-`https://<계정>.github.io/cashflow-calculator/` 주소로 접속할 수 있습니다.
-(한 번 접속한 뒤에는 브라우저 캐시로 오프라인에서도 대부분 동작)
+푸시하면 GitHub Actions가 자동으로 배포합니다 (`.github/workflows/deploy-pages.yml`):
+
+**https://chance-to-be.github.io/cashflow-calculator/**
+
+폰 브라우저에서 열고 "홈 화면에 추가"하면 앱처럼 사용할 수 있습니다.
+(무료 플랜에서는 저장소가 public이어야 Pages가 동작합니다)
 
 ## 기능
 
