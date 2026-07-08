@@ -89,6 +89,11 @@ table.inp input, select, input[type=month], input[type=number]{
   border-radius:7px; padding:6px 8px; font-size:.85rem; font-family:inherit;
 }
 input:focus, select:focus{outline:2px solid var(--accent-weak); border-color:var(--accent)}
+/* iOS 등 month 미지원 브라우저용 년/월 드롭다운 */
+.mfield{display:flex; gap:4px; width:100%}
+.mfield select{padding:6px 3px}
+.mfield select.mf-y{flex:1.3; min-width:64px}
+.mfield select.mf-m{flex:1; min-width:48px}
 input.money{text-align:right; font-variant-numeric:tabular-nums}
 td.del{width:28px; text-align:center}
 button.delrow{border:none; background:none; color:var(--ink-3); font-size:1rem; cursor:pointer; padding:2px 6px}
@@ -892,6 +897,38 @@ function el(tag, attrs, ...kids){
   for(const c of kids) if(c != null) e.append(c);
   return e;
 }
+// iOS Safari는 <input type="month">를 지원하지 않아 텍스트 칸으로 깨져 보임 → 년/월 셀렉트로 대체
+// (#nomonth 해시로 강제 테스트 가능)
+const MONTH_SUPPORTED = (() => {
+  if(location.hash.includes('nomonth')) return false;
+  const i = document.createElement('input');
+  i.setAttribute('type','month');
+  return i.type === 'month';
+})();
+// get/set으로 상태와 연결되는 월 입력 위젯. set이 상태 갱신+onChange 호출을 책임진다.
+function makeMonthField(get, set){
+  if(MONTH_SUPPORTED){
+    const inp = el('input', {type:'month'});
+    inp.value = get() || '';
+    inp.addEventListener('input', () => set(inp.value));
+    return inp;
+  }
+  const wrap = el('span', {class:'mfield'});
+  const ys = el('select', {class:'mf-y'}), ms = el('select', {class:'mf-m'});
+  const now = new Date().getFullYear();
+  ys.append(el('option', {value:''}, '년'));
+  for(let y = now - 5; y <= now + 40; y++) ys.append(el('option', {value:String(y)}, y + '년'));
+  ms.append(el('option', {value:''}, '월'));
+  for(let m = 1; m <= 12; m++) ms.append(el('option', {value:String(m).padStart(2,'0')}, m + '월'));
+  const v = get() || '';
+  ys.value = v.split('-')[0] || '';
+  ms.value = v.split('-')[1] || '';
+  const commit = () => set(ys.value && ms.value ? ys.value + '-' + ms.value : '');
+  ys.addEventListener('change', commit);
+  ms.addEventListener('change', commit);
+  wrap.append(ys, ms);
+  return wrap;
+}
 function parseMoney(str){ return +String(str).replace(/[^\d\-]/g,'') || 0; }
 function fmtComma(n){ return n ? (+n).toLocaleString('ko-KR') : ''; }
 function attachMoney(input, get, set){
@@ -943,9 +980,7 @@ function renderInputTable(name){
         inp = el('input', {class:'money', inputmode:'numeric', placeholder:c.ph||''});
         attachMoney(inp, () => row[c.k], v => row[c.k] = v);
       } else if(c.month){
-        inp = el('input', {type:'month'});
-        inp.value = row[c.k] || '';
-        inp.addEventListener('input', () => { row[c.k] = inp.value; onChange(); });
+        inp = makeMonthField(() => row[c.k], v => { row[c.k] = v; onChange(); });
       } else {
         inp = el('input', {type:'text', placeholder:c.ph||''});
         inp.value = row[c.k] || '';
@@ -1481,11 +1516,18 @@ $('#fileImport').addEventListener('change', e => {
 // ============================================================
 //  초기화: state → 입력 UI 동기화
 // ============================================================
+// 고정 월 필드(#flowStart 등)를 makeMonthField 위젯으로 교체. 재호출(시나리오 로드) 시에도
+// 같은 id의 기존 위젯을 새 위젯으로 갈아끼워 idempotent하게 동작.
+function mountMonth(id, get, set){
+  const old = document.getElementById(id);
+  const w = makeMonthField(get, set);
+  w.id = id;
+  old.replaceWith(w);
+}
 function initInputs(){
   Object.keys(TABLE_DEFS).forEach(renderInputTable);
 
-  $('#flowStart').value = state.flow.startMonth;
-  $('#flowStart').oninput = e => { if(e.target.value){ state.flow.startMonth = e.target.value; onChange(); } };
+  mountMonth('flowStart', () => state.flow.startMonth, v => { if(v){ state.flow.startMonth = v; onChange(); } });
   $('#flowMonths').value = state.flow.months;
   $('#flowMonths').oninput = e => { state.flow.months = +e.target.value || 24; onChange(); };
 
@@ -1496,16 +1538,15 @@ function initInputs(){
   bindSeg('#segLoan', () => state.buy.loan.type, v => state.buy.loan.type = v);
   bindSeg('#segDeposit', () => state.sell.depositMode, v => state.sell.depositMode = v);
 
-  $('#buyMonth').value = state.buy.month;
-  $('#buyMonth').oninput = e => {
-    state.buy.month = e.target.value;
+  mountMonth('buyMonth', () => state.buy.month, v => {
+    state.buy.month = v;
     // 지불 일정이 비어있으면 매입 월로 채워줌
-    if(state.buy.month && state.buy.payments.length && !state.buy.payments[0].month){
-      state.buy.payments[0].month = state.buy.month;
+    if(v && state.buy.payments.length && !state.buy.payments[0].month){
+      state.buy.payments[0].month = v;
       renderInputTable('payments');
     }
     onChange();
-  };
+  });
   const bp = $('#buyPrice'); bp.value = fmtComma(state.buy.price);
   attachMoney(bp, () => state.buy.price, v => state.buy.price = v);
   $('#buyTenant').checked = state.buy.tenant;
@@ -1523,8 +1564,7 @@ function initInputs(){
   $('#buyMonths').value = state.buy.viewMonths;
   $('#buyMonths').oninput = e => { state.buy.viewMonths = +e.target.value || 36; onChange(); };
 
-  $('#sellMonth').value = state.sell.month;
-  $('#sellMonth').oninput = e => { state.sell.month = e.target.value; onChange(); };
+  mountMonth('sellMonth', () => state.sell.month, v => { state.sell.month = v; onChange(); });
   const sp = $('#sellPrice'); sp.value = fmtComma(state.sell.price);
   attachMoney(sp, () => state.sell.price, v => state.sell.price = v);
   $('#sellLived').checked = state.sell.lived;
