@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>부동산 현금흐름 계산기</title>
+<style>
+:root{
+  --surface-1:#fcfcfb; --page:#f9f9f7;
+  --ink-1:#0b0b0b; --ink-2:#52514e; --ink-3:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+  --series-1:#2a78d6; --series-2:#1baf7a; --neg:#e34948;
+  --good:#006300; --bad:#d03b3b;
+  --accent:#2a78d6; --accent-weak:rgba(42,120,214,.10);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --surface-1:#1a1a19; --page:#0d0d0d;
+    --ink-1:#ffffff; --ink-2:#c3c2b7; --ink-3:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+    --series-1:#3987e5; --series-2:#199e70; --neg:#e66767;
+    --good:#0ca30c; --bad:#e66767;
+    --accent:#3987e5; --accent-weak:rgba(57,135,229,.15);
+  }
+}
+*{box-sizing:border-box; margin:0; padding:0}
+html{font-size:15px}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI","Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+  background:var(--page); color:var(--ink-1); line-height:1.5;
+  padding-bottom:60px;
+}
+.app{max-width:760px; margin:0 auto; padding:0 12px}
+header.top{padding:14px 2px 8px}
+header.top h1{font-size:1.15rem; font-weight:700}
+header.top p{font-size:.78rem; color:var(--ink-3)}
+
+/* scenario bar */
+.scenario-bar{display:flex; gap:6px; flex-wrap:wrap; align-items:center; padding:8px 0 4px}
+.scenario-bar select{flex:1; min-width:120px}
+.btn{
+  border:1px solid var(--border); background:var(--surface-1); color:var(--ink-1);
+  border-radius:8px; padding:6px 10px; font-size:.82rem; cursor:pointer; white-space:nowrap;
+}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+.btn.small{padding:3px 8px; font-size:.75rem}
+.btn.danger{color:var(--bad)}
+
+/* tabs */
+nav.tabs{
+  display:flex; gap:4px; position:sticky; top:0; z-index:30;
+  background:var(--page); padding:8px 0; border-bottom:1px solid var(--grid);
+}
+nav.tabs button{
+  flex:1; border:none; background:none; color:var(--ink-2); font-size:.9rem; font-weight:600;
+  padding:8px 4px; border-radius:8px; cursor:pointer;
+}
+nav.tabs button.active{background:var(--accent-weak); color:var(--accent)}
+
+.tabpane{display:none; padding-top:10px}
+.tabpane.active{display:block}
+
+.card{
+  background:var(--surface-1); border:1px solid var(--border); border-radius:12px;
+  padding:12px; margin:10px 0;
+}
+.card h2{font-size:.95rem; font-weight:700; margin-bottom:4px}
+.card h2 .hint{font-weight:400; font-size:.75rem; color:var(--ink-3); margin-left:6px}
+.card .desc{font-size:.75rem; color:var(--ink-3); margin-bottom:8px}
+
+/* input tables */
+table.inp{width:100%; border-collapse:collapse; font-size:.85rem}
+table.inp th{
+  text-align:left; font-size:.72rem; color:var(--ink-3); font-weight:600;
+  padding:2px 4px; border-bottom:1px solid var(--grid);
+}
+table.inp td{padding:3px 2px; vertical-align:middle}
+/* 4열(지불 일정) 테이블: 좁은 화면에서 날짜·내용 칸을 줄이고 금액 칸 확보 */
+#tbl-payments input[type=month]{min-width:104px; padding:6px 4px}
+#tbl-payments td:nth-child(2) input{min-width:44px; padding:6px 4px}
+#tbl-payments td:nth-child(3), #tbl-payments td:nth-child(4){min-width:86px}
+#tbl-payments input.money{padding:6px 5px}
+table.inp input, select, input[type=month], input[type=number]{
+  width:100%; border:1px solid var(--border); background:var(--page); color:var(--ink-1);
+  border-radius:7px; padding:6px 8px; font-size:.85rem; font-family:inherit;
+}
+input:focus, select:focus{outline:2px solid var(--accent-weak); border-color:var(--accent)}
+input.money{text-align:right; font-variant-numeric:tabular-nums}
+td.del{width:28px; text-align:center}
+button.delrow{border:none; background:none; color:var(--ink-3); font-size:1rem; cursor:pointer; padding:2px 6px}
+button.delrow:hover{color:var(--bad)}
+.addrow{margin-top:6px}
+.subtotal{font-size:.78rem; color:var(--ink-2); text-align:right; margin-top:4px}
+.subtotal b{font-variant-numeric:tabular-nums}
+
+/* form grid */
+.fgrid{display:grid; grid-template-columns:1fr 1fr; gap:8px 10px}
+.fgrid .full{grid-column:1/-1}
+.fld label{display:block; font-size:.72rem; color:var(--ink-3); font-weight:600; margin-bottom:2px}
+.fld .won{font-size:.7rem; color:var(--accent); min-height:1em; text-align:right; font-variant-numeric:tabular-nums}
+.seg{display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden}
+.seg button{flex:1; border:none; background:var(--page); color:var(--ink-2); padding:7px 2px; font-size:.8rem; cursor:pointer}
+.seg button.on{background:var(--accent); color:#fff; font-weight:600}
+.checkline{display:flex; align-items:center; gap:6px; font-size:.85rem; padding:6px 0}
+.checkline input[type=checkbox]{width:17px; height:17px; accent-color:var(--accent)}
+
+.valid{font-size:.8rem; border-radius:8px; padding:7px 10px; margin-top:8px}
+.valid.ok{background:rgba(12,163,12,.1); color:var(--good)}
+.valid.warn{background:rgba(208,59,59,.1); color:var(--bad)}
+
+/* output */
+.chart-wrap{position:relative; overflow-x:auto; margin-top:8px; -webkit-overflow-scrolling:touch}
+.chart-tip{
+  position:absolute; z-index:20; pointer-events:none; display:none;
+  background:var(--surface-1); border:1px solid var(--border); border-radius:8px;
+  box-shadow:0 4px 14px rgba(0,0,0,.18); padding:7px 9px; font-size:.72rem; min-width:150px; max-width:230px;
+}
+.chart-tip .t{font-weight:700; margin-bottom:2px}
+.chart-tip .r{display:flex; justify-content:space-between; gap:10px}
+.chart-tip .r span:last-child{font-variant-numeric:tabular-nums}
+.chart-tip .ev{color:var(--ink-3); margin-top:3px; border-top:1px solid var(--grid); padding-top:3px}
+.legend{display:flex; gap:14px; font-size:.72rem; color:var(--ink-2); margin-top:6px}
+.legend i{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:4px; vertical-align:-1px}
+
+/* output table */
+.outtbl-wrap{overflow-x:auto; margin-top:8px}
+table.out{width:100%; border-collapse:collapse; font-size:.78rem; min-width:430px}
+table.out th{
+  text-align:right; font-size:.7rem; color:var(--ink-3); padding:4px 6px;
+  border-bottom:1px solid var(--axis); position:sticky; top:0; background:var(--surface-1);
+}
+table.out th:first-child{text-align:left}
+table.out td{
+  padding:4px 6px; text-align:right; border-bottom:1px solid var(--grid);
+  font-variant-numeric:tabular-nums; white-space:nowrap;
+}
+table.out td:first-child{text-align:left; cursor:pointer}
+table.out tr.neg td.bal{color:var(--bad); font-weight:600}
+table.out tr.evrow td{background:var(--page); text-align:left; white-space:normal; font-size:.72rem; color:var(--ink-2)}
+table.out tr.hasev td:first-child::after{content:" ▸"; color:var(--ink-3); font-size:.65rem}
+table.out tr.hasev.open td:first-child::after{content:" ▾"}
+
+/* summary card */
+.sumgrid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px}
+.tile{background:var(--page); border:1px solid var(--border); border-radius:10px; padding:9px 11px}
+.tile .l{font-size:.7rem; color:var(--ink-3); font-weight:600}
+.tile .v{font-size:1.05rem; font-weight:700; margin-top:2px}
+.tile .v.good{color:var(--good)} .tile .v.bad{color:var(--bad)}
+.tile .s{font-size:.68rem; color:var(--ink-3)}
+.hero{grid-column:1/-1; text-align:center; padding:14px}
+.hero .v{font-size:1.7rem}
+
+/* breakdown list */
+ul.bd{list-style:none; font-size:.8rem; margin-top:6px}
+ul.bd li{display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid var(--grid)}
+ul.bd li span:last-child{font-variant-numeric:tabular-nums}
+ul.bd li.tot{font-weight:700; border-bottom:none}
+ul.bd li .sub{color:var(--ink-3); font-size:.72rem}
+
+details.settings{margin:10px 0}
+details.settings summary{
+  cursor:pointer; font-size:.82rem; font-weight:600; color:var(--ink-2);
+  padding:8px 12px; background:var(--surface-1); border:1px solid var(--border); border-radius:10px;
+}
+details.settings[open] summary{border-radius:10px 10px 0 0}
+details.settings .body{
+  border:1px solid var(--border); border-top:none; border-radius:0 0 10px 10px;
+  background:var(--surface-1); padding:12px;
+}
+.rategrid{display:grid; grid-template-columns:1fr 1fr; gap:8px 10px}
+table.brk{width:100%; border-collapse:collapse; font-size:.78rem; margin-top:8px}
+table.brk th{font-size:.7rem; color:var(--ink-3); text-align:right; padding:3px}
+table.brk td{padding:2px}
+.note{font-size:.72rem; color:var(--ink-3); margin-top:8px; line-height:1.6}
+.footer-note{font-size:.7rem; color:var(--ink-3); text-align:center; padding:20px 10px}
+
+/* cost table */
+table.cost{width:100%; border-collapse:collapse; font-size:.82rem}
+table.cost td{padding:4px 3px; border-bottom:1px solid var(--grid); vertical-align:middle}
+table.cost td.amt{width:38%}
+table.cost td.rst{width:30px; text-align:center}
+table.cost .auto-note{font-size:.68rem; color:var(--ink-3)}
+table.cost tr.overridden .auto-note{color:var(--accent)}
+
+@media (max-width:420px){
+  html{font-size:14px}
+  .fgrid{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1>🏠 부동산 현금흐름 계산기</h1>
+    <p>오프라인 사용 가능 · 입력값은 이 기기에 자동 저장됩니다</p>
+  </header>
+
+  <div class="scenario-bar">
+    <select id="scnSelect" title="저장된 시나리오"></select>
+    <button class="btn" id="btnSaveScn">저장</button>
+    <button class="btn danger" id="btnDelScn">삭제</button>
+    <button class="btn" id="btnExport">내보내기</button>
+    <button class="btn" id="btnImport">가져오기</button>
+    <input type="file" id="fileImport" accept=".json,application/json" style="display:none">
+  </div>
+
+  <nav class="tabs">
+    <button data-tab="flow" class="active">① 현금 흐름</button>
+    <button data-tab="buy">② 매수 시나리오</button>
+    <button data-tab="sell">③ 매도 시나리오</button>
+  </nav>
+
+  <!-- ================= TAB 1 : FLOW ================= -->
+  <section class="tabpane active" id="pane-flow">
+    <div class="card">
+      <h2>현재 보유 현금 <span class="hint">구분 | 내용 | 금액</span></h2>
+      <table class="inp" id="tbl-holdings"></table>
+      <button class="btn small addrow" data-add="holdings">＋ 항목 추가</button>
+      <div class="subtotal">합계 <b id="sum-holdings">0원</b></div>
+    </div>
+    <div class="card">
+      <h2>매월 반복 유입 <span class="hint">지출은 음수(-)로 입력</span></h2>
+      <table class="inp" id="tbl-monthly"></table>
+      <button class="btn small addrow" data-add="monthly">＋ 항목 추가</button>
+      <div class="subtotal">월 합계 <b id="sum-monthly">0원</b></div>
+    </div>
+    <div class="card">
+      <h2>특정 시점 유입 <span class="hint">날짜 | 내용 | 금액</span></h2>
+      <table class="inp" id="tbl-inflows"></table>
+      <button class="btn small addrow" data-add="inflows">＋ 항목 추가</button>
+    </div>
+    <div class="card">
+      <h2>특정 시점 유출 <span class="hint">날짜 | 내용 | 금액</span></h2>
+      <table class="inp" id="tbl-outflows"></table>
+      <button class="btn small addrow" data-add="outflows">＋ 항목 추가</button>
+    </div>
+    <div class="card">
+      <h2>계산 설정</h2>
+      <div class="fgrid">
+        <div class="fld"><label>시작 월</label><input type="month" id="flowStart"></div>
+        <div class="fld"><label>조회 기간 (개월)</label><input type="number" id="flowMonths" min="1" max="360" step="1"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>월별 현금 잔액</h2>
+      <div id="chart-flow" class="chart-wrap"></div>
+      <div class="outtbl-wrap" id="table-flow"></div>
+    </div>
+  </section>
+
+  <!-- ================= TAB 2 : BUY ================= -->
+  <section class="tabpane" id="pane-buy">
+    <div class="card">
+      <h2>기본 정보</h2>
+      <div class="fgrid">
+        <div class="fld full"><label>주택 유형</label>
+          <div class="seg" id="segType">
+            <button data-v="apt">아파트</button><button data-v="villa">빌라·연립</button>
+          </div>
+        </div>
+        <div class="fld"><label>전용면적</label>
+          <div class="seg" id="segArea">
+            <button data-v="0">85㎡ 이하</button><button data-v="1">85㎡ 초과</button>
+          </div>
+        </div>
+        <div class="fld"><label>취득 후 보유 주택 수</label>
+          <div class="seg" id="segHouses">
+            <button data-v="1">1주택</button><button data-v="2">2주택</button><button data-v="3">3주택↑</button>
+          </div>
+        </div>
+        <div class="fld"><label>조정대상지역</label>
+          <div class="seg" id="segAdj">
+            <button data-v="0">비조정</button><button data-v="1">조정지역</button>
+          </div>
+        </div>
+        <div class="fld"><label>매입 년월</label><input type="month" id="buyMonth"></div>
+        <div class="fld"><label>매입 금액 (원)</label><input class="money" id="buyPrice" inputmode="numeric"><div class="won" id="buyPriceWon"></div></div>
+        <div class="fld full">
+          <div class="checkline"><input type="checkbox" id="buyTenant"><label for="buyTenant" style="font-size:.85rem;color:var(--ink-1);font-weight:400">세끼고 매수 (전세보증금 승계)</label></div>
+        </div>
+        <div class="fld full" id="depositRow" style="display:none">
+          <label>전세보증금 (원)</label><input class="money" id="buyDeposit" inputmode="numeric"><div class="won" id="buyDepositWon"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>대금 지불 일정 <span class="hint">날짜 | 내용 | 현금 | 대출금액</span></h2>
+      <p class="desc">잔금 시 대출을 실행하면 대출금액 칸에 입력 — 그 달부터 대출이 실행되어 매월 원리금이 현금흐름에서 빠져나갑니다.</p>
+      <table class="inp" id="tbl-payments"></table>
+      <button class="btn small addrow" data-add="payments">＋ 지불 추가</button>
+      <div class="valid" id="payValid"></div>
+    </div>
+
+    <div class="card">
+      <h2>대출 조건</h2>
+      <div class="fgrid">
+        <div class="fld full"><label>상환 방식</label>
+          <div class="seg" id="segLoan">
+            <button data-v="annuity">원리금균등</button><button data-v="equal_principal">원금균등</button><button data-v="bullet">만기일시</button>
+          </div>
+          <div class="won" id="loanTypeDesc" style="text-align:left;color:var(--ink-3)"></div>
+        </div>
+        <div class="fld"><label>연 금리 (%)</label><input type="number" id="loanRate" step="0.01" min="0"></div>
+        <div class="fld"><label>대출 기간 (년)</label><input type="number" id="loanYears" step="1" min="1"></div>
+        <div class="fld"><label>거치 기간 (개월)</label><input type="number" id="loanGrace" step="1" min="0"></div>
+        <div class="fld"><label>첫 달 예상 상환액</label><div style="padding:7px 0;font-weight:700;font-variant-numeric:tabular-nums" id="loanFirstPay">—</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>취득 부대비용 <span class="hint">자동 계산 · 금액 수정 가능</span></h2>
+      <p class="desc">취득세 등 법정 비용은 위 기본 정보로 자동 계산됩니다. 금액을 직접 고치면 ↺로 자동값 복원.</p>
+      <table class="cost" id="tbl-costs"></table>
+      <table class="inp" id="tbl-extraCosts"></table>
+      <button class="btn small addrow" data-add="extraCosts">＋ 기타 비용 추가</button>
+      <div class="subtotal">부대비용 합계 <b id="sum-costs">0원</b></div>
+    </div>
+
+    <details class="settings">
+      <summary>⚙️ 취득 세율·비용 설정 (기본값 수정)</summary>
+      <div class="body">
+        <div class="rategrid">
+          <div class="fld"><label>농특세율 85㎡초과 (%)</label><input type="number" step="0.1" data-rate="ruralRate"></div>
+          <div class="fld"><label>채권 할인율 (%)</label><input type="number" step="0.1" data-rate="bondDiscount"></div>
+          <div class="fld"><label>시가표준액 비율-아파트 (%)</label><input type="number" step="1" data-rate="stdRatioApt"></div>
+          <div class="fld"><label>시가표준액 비율-빌라 (%)</label><input type="number" step="1" data-rate="stdRatioVilla"></div>
+        </div>
+        <p class="note">취득세율(1주택 1~3% 슬라이딩, 조정 2주택 8%, 3주택↑ 12%), 지방교육세, 인지세, 중개보수 상한요율, 국민주택채권 매입율표는 2026년 기준 법정값으로 자동 적용됩니다. 개별 금액은 위 부대비용 표에서 직접 수정하세요. 빌라는 공시가격 현실화율이 낮아 시가표준액 비율 기본값을 낮게 잡았습니다.</p>
+      </div>
+    </details>
+
+    <div class="card">
+      <h2>매수 후 현금 흐름 <span class="hint">① 현금 흐름과 합산</span></h2>
+      <div class="fgrid" style="margin-bottom:6px">
+        <div class="fld"><label>조회 기간 (개월)</label><input type="number" id="buyMonths" min="1" max="480" step="1"></div>
+      </div>
+      <div id="chart-buy" class="chart-wrap"></div>
+      <div class="legend" id="legend-buy"></div>
+      <div class="outtbl-wrap" id="table-buy"></div>
+    </div>
+  </section>
+
+  <!-- ================= TAB 3 : SELL ================= -->
+  <section class="tabpane" id="pane-sell">
+    <div class="card">
+      <h2>매도 정보</h2>
+      <div class="fgrid">
+        <div class="fld"><label>매도 년월</label><input type="month" id="sellMonth"></div>
+        <div class="fld"><label>매도 금액 (원)</label><input class="money" id="sellPrice" inputmode="numeric"><div class="won" id="sellPriceWon"></div></div>
+        <div class="fld full">
+          <div class="checkline"><input type="checkbox" id="sellLived"><label for="sellLived" style="font-size:.85rem;color:var(--ink-1);font-weight:400">실거주 의무 이행 (거주했음)</label></div>
+        </div>
+        <div class="fld" id="liveMonthsRow" style="display:none">
+          <label>거주 기간 (개월)</label><input type="number" id="sellLiveMonths" min="0" step="1">
+        </div>
+        <div class="fld full" id="depositModeRow" style="display:none"><label>세입자 보증금 처리</label>
+          <div class="seg" id="segDeposit">
+            <button data-v="assume">매수자 승계</button><button data-v="return">반환 후 매도</button>
+          </div>
+        </div>
+      </div>
+      <div class="valid warn" id="sellValid" style="display:none"></div>
+    </div>
+
+    <div class="card">
+      <h2>매도 부대비용 <span class="hint">자동 계산 · 수정 가능</span></h2>
+      <table class="cost" id="tbl-sellCosts"></table>
+      <table class="inp" id="tbl-sellExtras"></table>
+      <button class="btn small addrow" data-add="sellExtras">＋ 기타 비용 추가</button>
+    </div>
+
+    <div class="card">
+      <h2>양도소득세 계산</h2>
+      <ul class="bd" id="cgtBreakdown"></ul>
+    </div>
+
+    <details class="settings">
+      <summary>⚙️ 양도 세율 설정 (기본값 수정)</summary>
+      <div class="body">
+        <div class="rategrid">
+          <div class="fld"><label>1년 미만 단기세율 (%)</label><input type="number" step="1" data-rate="cgtShort1"></div>
+          <div class="fld"><label>1~2년 단기세율 (%)</label><input type="number" step="1" data-rate="cgtShort2"></div>
+          <div class="fld"><label>지방소득세 (양도세의 %)</label><input type="number" step="1" data-rate="localSurtax"></div>
+          <div class="fld"><label>1주택 비과세 한도 (원)</label><input class="money" inputmode="numeric" data-rate="exemptCap"></div>
+          <div class="fld"><label>기본공제 (원)</label><input class="money" inputmode="numeric" data-rate="basicDeduction"></div>
+          <div class="fld"><label>중도상환수수료율 (%)</label><input type="number" step="0.1" data-rate="prepayFee"></div>
+        </div>
+        <table class="brk" id="tbl-brackets">
+          <thead><tr><th style="text-align:left">과세표준 상한 (원)</th><th>세율(%)</th><th>누진공제(원)</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="note">기본 누진세율표(6~45%)와 단기 양도세율(1년 미만 70%, 1~2년 60%)은 2026년 소득세법 기준. 1세대 1주택 비과세: 보유 2년 이상(조정대상지역 취득 시 거주 2년 포함), 12억 초과분만 과세. 장기보유특별공제는 자동 적용(1주택 거주 시 연 8%p 최대 80%, 일반 연 2%p 최대 30%). <b>계산 결과는 참고용 추정치이며 실제 세액은 세무사와 확인하세요.</b></p>
+        <button class="btn small" id="btnResetRates" style="margin-top:8px">모든 세율 기본값으로 초기화</button>
+      </div>
+    </details>
+
+    <div class="card">
+      <h2>실현 수익 요약</h2>
+      <div class="sumgrid" id="profitSummary"></div>
+      <ul class="bd" id="profitBreakdown"></ul>
+    </div>
+
+    <div class="card">
+      <h2>매도 반영 현금 흐름</h2>
+      <div id="chart-sell" class="chart-wrap"></div>
+      <div class="legend" id="legend-sell"></div>
+      <div class="outtbl-wrap" id="table-sell"></div>
+    </div>
+  </section>
+
+  <p class="footer-note">
+    세율·비용 기본값은 2026년 법령 기준 추정치입니다. 실제 거래 전 반드시 전문가와 확인하세요.<br>
+    데이터는 브라우저(localStorage)에만 저장됩니다 — 주기적으로 「내보내기」로 백업하세요.
+  </p>
+</div>
+
+<script>
+/*==CALC_CORE_START==*/
+// ---------- 월 유틸 ----------
+function ymToIdx(ym){ const p=String(ym).split('-'); return (+p[0])*12+(+p[1]-1); }
+function idxToYm(i){ const y=Math.floor(i/12), m=i%12+1; return y+'-'+String(m).padStart(2,'0'); }
+function ymShort(i){ const y=Math.floor(i/12)%100, m=i%12+1; return String(y).padStart(2,'0')+'.'+String(m).padStart(2,'0'); }
+
+// ---------- 기본 세율/비용 (수정 가능) ----------
+const DEFAULT_RATES = {
+  ruralRate: 0.2,        // 농어촌특별세, 85㎡ 초과 기본세율분 (%)
+  stdRatioApt: 70,       // 시가표준액 추정 = 매매가 × % (아파트)
+  stdRatioVilla: 60,     // 빌라·연립
+  bondDiscount: 10,      // 국민주택채권 즉시매도 할인율 (%)
+  regFee: 15000,         // 등기신청수수료
+  cgtShort1: 70,         // 보유 1년 미만 양도세율 (%)
+  cgtShort2: 60,         // 보유 1~2년 (%)
+  localSurtax: 10,       // 지방소득세 = 양도세 × %
+  exemptCap: 1200000000, // 1세대1주택 비과세 한도 (매도가 기준)
+  basicDeduction: 2500000,
+  prepayFee: 1.2,        // 대출 중도상환수수료율 (%)
+  brackets: [            // [과세표준 상한, 세율%, 누진공제]
+    [14000000, 6, 0],
+    [50000000, 15, 1260000],
+    [88000000, 24, 5760000],
+    [150000000, 35, 15440000],
+    [300000000, 38, 19940000],
+    [500000000, 40, 25940000],
+    [1000000000, 42, 35940000],
+    [Infinity, 45, 65940000]
+  ]
+};
+// 중개보수 상한요율 (주택 매매): [거래금액 상한, 요율%, 한도액|null]
+const BROKER_TABLE = [
+  [50000000, 0.6, 250000],
+  [200000000, 0.5, 800000],
+  [900000000, 0.4, null],
+  [1200000000, 0.5, null],
+  [1500000000, 0.6, null],
+  [Infinity, 0.7, null]
+];
+// 인지세: [기재금액 상한, 세액]
+const STAMP_TABLE = [
+  [10000000, 0],
+  [30000000, 20000],
+  [50000000, 40000],
+  [100000000, 70000],
+  [1000000000, 150000],
+  [Infinity, 350000]
+];
+// 국민주택채권 매입율 (시가표준액 기준, 서울·광역시 주택): [상한, 매입율%]
+const BOND_TABLE = [
+  [20000000, 0],
+  [50000000, 1.3],
+  [100000000, 1.9],
+  [160000000, 2.1],
+  [260000000, 2.3],
+  [600000000, 2.6],
+  [Infinity, 3.1]
+];
+
+// ---------- 대출 상환 스케줄 ----------
+// {principal, annualRate(%), years, graceMonths, type:'annuity'|'equal_principal'|'bullet'}
+// → [{k, interest, principal, balance}] (k=대출 실행 다음 달부터 1,2,3…)
+function loanSchedule(o){
+  const P = +o.principal || 0;
+  if(P <= 0) return [];
+  const i = (+o.annualRate || 0) / 100 / 12;
+  const N = Math.max(1, Math.round((+o.years || 1) * 12));
+  const g = Math.min(Math.max(0, Math.round(+o.graceMonths || 0)), N - 1);
+  const M = N - g;
+  const rows = [];
+  let bal = P;
+  if(o.type === 'bullet'){
+    for(let k=1; k<=N; k++){
+      const pr = (k === N) ? bal : 0;
+      rows.push({k, interest: bal*i, principal: pr, balance: bal - pr});
+      bal -= pr;
+    }
+    return rows;
+  }
+  if(o.type === 'equal_principal'){
+    const mp = P / M;
+    for(let k=1; k<=N; k++){
+      const pr = k <= g ? 0 : Math.min(mp, bal);
+      rows.push({k, interest: bal*i, principal: pr, balance: bal - pr});
+      bal -= pr;
+    }
+    return rows;
+  }
+  // 원리금균등
+  const A = i === 0 ? P/M : P * i / (1 - Math.pow(1+i, -M));
+  for(let k=1; k<=N; k++){
+    const int = bal * i;
+    let pr = k <= g ? 0 : Math.min(A - int, bal);
+    if(k === N) pr = bal;
+    rows.push({k, interest: int, principal: pr, balance: bal - pr});
+    bal -= pr;
+  }
+  return rows;
+}
+function loanBalanceAt(sched, principal, k){ // k회차 납부 후 잔액
+  if(k <= 0) return principal;
+  if(k >= sched.length) return 0;
+  return sched[k-1].balance;
+}
+
+// ---------- 취득세율 ----------
+function acqTaxRates(o){ // {price, houses, adjusted, over85} → {acq, edu, rural} (%)
+  const p = +o.price || 0;
+  let acq;
+  if(o.houses >= 3) acq = o.adjusted ? 12 : 8;
+  else if(o.houses === 2 && o.adjusted) acq = 8;
+  else { // 1주택 및 비조정 2주택: 1~3% 슬라이딩 (세율은 반올림 없이 계산, 표시만 반올림)
+    if(p <= 600000000) acq = 1;
+    else if(p <= 900000000) acq = p * 2 / 300000000 - 3;
+    else acq = 3;
+  }
+  const heavy = acq >= 8;
+  const edu = heavy ? 0.4 : acq * 0.1;
+  const rural = !o.over85 ? 0 : (acq === 12 ? 1.0 : acq === 8 ? 0.6 : (o.ruralRate != null ? o.ruralRate : 0.2));
+  return {acq, edu, rural};
+}
+
+function brokerageFee(price){
+  const p = +price || 0;
+  for(const [limit, rate, cap] of BROKER_TABLE){
+    if(p <= limit){
+      let fee = p * rate / 100;
+      if(cap) fee = Math.min(fee, cap);
+      return Math.round(fee);
+    }
+  }
+  return 0;
+}
+function stampDuty(price){
+  const p = +price || 0;
+  for(const [limit, amt] of STAMP_TABLE){ if(p <= limit) return amt; }
+  return 0;
+}
+function bondCost(price, ratioPct, discountPct){
+  const std = (+price || 0) * ratioPct / 100;
+  let rate = 0;
+  for(const [limit, r] of BOND_TABLE){ if(std <= limit){ rate = r; break; } }
+  return Math.round(std * rate / 100 * discountPct / 100);
+}
+function legalFee(price){ // 법무사 기본보수 근사 (1억 26만 / 3억 44만 / 5억 60만)
+  const p = +price || 0;
+  if(p <= 100000000) return 260000;
+  if(p <= 300000000) return 260000 + Math.round((p - 100000000) * 0.0009);
+  if(p <= 500000000) return 440000 + Math.round((p - 300000000) * 0.0008);
+  if(p <= 1000000000) return 600000 + Math.round((p - 500000000) * 0.0007);
+  return 950000 + Math.round((p - 1000000000) * 0.0005);
+}
+
+// ---------- 취득 부대비용 (자동) ----------
+function acquisitionCosts(buy, R){
+  const p = +buy.price || 0;
+  if(p <= 0) return [];
+  const tr = acqTaxRates({price: p, houses: buy.houses, adjusted: buy.adjusted, over85: buy.over85, ruralRate: R.ruralRate});
+  const ratio = buy.type === 'villa' ? R.stdRatioVilla : R.stdRatioApt;
+  const pct = v => (Math.round(v * 100) / 100) + '%';
+  const items = [
+    {key:'acq',    label:'취득세',        note: pct(tr.acq),  amount: Math.round(p * tr.acq / 100)},
+    {key:'edu',    label:'지방교육세',    note: pct(tr.edu),  amount: Math.round(p * tr.edu / 100)},
+    {key:'rural',  label:'농어촌특별세',  note: tr.rural ? tr.rural + '%' : '85㎡ 이하 비과세', amount: Math.round(p * tr.rural / 100)},
+    {key:'broker', label:'중개보수',      note: '상한요율', amount: brokerageFee(p)},
+    {key:'bond',   label:'국민주택채권 할인비용', note: '할인율 ' + R.bondDiscount + '%', amount: bondCost(p, ratio, R.bondDiscount)},
+    {key:'stamp',  label:'인지세',        note: '', amount: stampDuty(p)},
+    {key:'legal',  label:'법무사 보수',   note: '기본보수 추정', amount: legalFee(p)},
+    {key:'regfee', label:'등기신청수수료', note: '', amount: R.regFee}
+  ];
+  return items;
+}
+
+// ---------- 양도소득세 ----------
+function capitalGainsTax(o, R){
+  // o: {sellPrice, buyPrice, expenses, holdMonths, liveMonths, houses, adjustedAtBuy}
+  const out = {gain:0, exempt:false, exemptPortion:0, taxableGain:0, ltsdRate:0,
+               taxBase:0, rateLabel:'—', tax:0, localTax:0, total:0, note:''};
+  const gain = (+o.sellPrice||0) - (+o.buyPrice||0) - (+o.expenses||0);
+  out.gain = gain;
+  if(gain <= 0){ out.note = '양도차익 없음 (세금 0)'; return out; }
+  const one = (+o.houses||1) === 1;
+  const hm = +o.holdMonths||0, lm = +o.liveMonths||0;
+  const exemptOK = one && hm >= 24 && (!o.adjustedAtBuy || lm >= 24);
+  let tg = gain;
+  if(exemptOK){
+    out.exempt = true;
+    if(o.sellPrice <= R.exemptCap){
+      out.note = '1세대 1주택 비과세 (매도가 ' + Math.round(R.exemptCap/1e8) + '억 이하)';
+      out.exemptPortion = gain;
+      return out;
+    }
+    tg = gain * (o.sellPrice - R.exemptCap) / o.sellPrice;
+    out.exemptPortion = gain - tg;
+    out.note = '1세대 1주택: ' + Math.round(R.exemptCap/1e8) + '억 초과분만 과세';
+  }
+  // 장기보유특별공제 (3년 이상)
+  let ltsd = 0;
+  if(hm >= 36){
+    const hy = Math.floor(hm/12), ly = Math.floor(lm/12);
+    if(one && lm >= 24) ltsd = Math.min(40, hy*4) + Math.min(40, ly*4);
+    else ltsd = Math.min(30, hy*2);
+  }
+  out.ltsdRate = ltsd;
+  tg = tg * (1 - ltsd/100);
+  out.taxableGain = tg;
+  const base = Math.max(0, tg - R.basicDeduction);
+  out.taxBase = base;
+  let tax = 0;
+  if(hm < 12){ tax = base * R.cgtShort1/100; out.rateLabel = '단기 ' + R.cgtShort1 + '% (보유 1년 미만)'; }
+  else if(hm < 24){ tax = base * R.cgtShort2/100; out.rateLabel = '단기 ' + R.cgtShort2 + '% (보유 2년 미만)'; }
+  else {
+    for(const [limit, rate, ded] of R.brackets){
+      if(base <= limit){ tax = base*rate/100 - ded; out.rateLabel = '기본 누진세율 ' + rate + '%'; break; }
+    }
+  }
+  out.tax = Math.max(0, Math.round(tax));
+  out.localTax = Math.round(out.tax * R.localSurtax/100);
+  out.total = out.tax + out.localTax;
+  return out;
+}
+
+// ---------- 부대비용 합계 (오버라이드 반영) ----------
+function resolvedCosts(buy, R){
+  const auto = acquisitionCosts(buy, R);
+  const ov = buy.costOverrides || {};
+  const items = auto.map(it => ({...it, amount: (ov[it.key] != null ? ov[it.key] : it.amount), autoAmount: it.amount, overridden: ov[it.key] != null}));
+  for(const ex of (buy.extraCosts||[])){
+    if(+ex.amount) items.push({key:'x', label: ex.desc || '기타', note:'직접 입력', amount:+ex.amount});
+  }
+  return items;
+}
+
+// ---------- 통합 타임라인 ----------
+// state: {flow:{startMonth, months, holdings[], monthly[], inflows[], outflows[]},
+//         buy:{...}, sell:{...}, rates:{...}}
+// opts: {includeBuy, includeSell, months}
+function buildTimeline(state, opts){
+  const R = state.rates;
+  const start = ymToIdx(state.flow.startMonth);
+  const F = state.flow;
+  const B = state.buy, S = state.sell;
+  const buyOn = opts.includeBuy && (+B.price||0) > 0 && (B.payments||[]).some(p => p.month);
+  // 잔금(취득) 월 = 마지막 지불 월
+  let acqIdx = null, payRows = [];
+  if(buyOn){
+    payRows = B.payments.filter(p => p.month && ((+p.cash||0) > 0 || (+p.loan||0) > 0));
+    for(const p of payRows){ const i = ymToIdx(p.month); if(acqIdx == null || i > acqIdx) acqIdx = i; }
+  }
+  const sellOn = opts.includeSell && buyOn && S.month && (+S.price||0) > 0 && acqIdx != null;
+  const saleIdx = sellOn ? ymToIdx(S.month) : null;
+
+  // 대출들
+  const loans = [];
+  if(buyOn){
+    for(const p of payRows){
+      const amt = +p.loan||0;
+      if(amt > 0){
+        loans.push({start: ymToIdx(p.month), principal: amt,
+          sched: loanSchedule({principal: amt, annualRate: B.loan.rate, years: B.loan.years, graceMonths: B.loan.grace, type: B.loan.type})});
+      }
+    }
+  }
+  const costs = buyOn ? resolvedCosts(B, R) : [];
+  const costTotal = costs.reduce((s,c) => s+c.amount, 0);
+  const deposit = (buyOn && B.tenant) ? (+B.deposit||0) : 0;
+
+  // 매도 계산
+  let sale = null;
+  if(sellOn){
+    const holdMonths = Math.max(0, saleIdx - acqIdx);
+    const liveMonths = S.lived ? (+S.liveMonths||0) : 0;
+    const saleBroker = S.costOverrides && S.costOverrides.broker != null ? S.costOverrides.broker : brokerageFee(S.price);
+    // 매도 시점 대출 잔액(그 달 정기상환 없이 중도상환)과 수수료
+    let payoff = 0;
+    for(const L of loans){
+      // 정기 상환은 매도 전월까지 (매도 월에는 잔액을 일시 중도상환)
+      const paidCount = saleIdx - L.start - 1;
+      payoff += loanBalanceAt(L.sched, L.principal, paidCount);
+    }
+    const prepay = S.costOverrides && S.costOverrides.prepay != null ? S.costOverrides.prepay : Math.round(payoff * R.prepayFee/100);
+    const extras = (S.extraCosts||[]).reduce((s,e) => s + (+e.amount||0), 0);
+    const expenses = costTotal + saleBroker; // 필요경비: 취득 부대비용 + 매도 중개보수
+    const cgt = capitalGainsTax({sellPrice:+S.price, buyPrice:+B.price, expenses,
+      holdMonths, liveMonths, houses:B.houses, adjustedAtBuy:B.adjusted}, R);
+    sale = {idx:saleIdx, holdMonths, liveMonths, broker:saleBroker, payoff, prepay, extras, cgt,
+      brokerAuto: brokerageFee(S.price), prepayAuto: Math.round(payoff * R.prepayFee/100)};
+  }
+
+  const months = Math.max(1, opts.months|0);
+  const rows = [];
+  let bal = 0;
+  for(let t=0; t<months; t++){
+    const idx = start + t;
+    const ev = []; // {label, amt, prop:bool}
+    if(t === 0){
+      const h = (F.holdings||[]).reduce((s,r) => s + (+r.amount||0), 0);
+      if(h) ev.push({label:'보유 현금', amt:h});
+    }
+    const mo = (F.monthly||[]).reduce((s,r) => s + (+r.amount||0), 0);
+    if(mo) ev.push({label:'매월 반복', amt:mo});
+    for(const r of (F.inflows||[])) if(r.month && ymToIdx(r.month) === idx && +r.amount) ev.push({label:r.desc||'유입', amt:+r.amount});
+    for(const r of (F.outflows||[])) if(r.month && ymToIdx(r.month) === idx && +r.amount) ev.push({label:r.desc||'유출', amt:-(+r.amount)});
+
+    if(buyOn && (saleIdx == null || idx <= saleIdx)){
+      for(const p of payRows){
+        if(ymToIdx(p.month) === idx && +p.cash) ev.push({label:'매수: ' + (p.desc||'대금'), amt:-(+p.cash), prop:true});
+      }
+      if(idx === acqIdx){
+        if(deposit) ev.push({label:'전세보증금 승계 (세끼고)', amt:deposit, prop:true});
+        if(costTotal) ev.push({label:'취득 부대비용', amt:-costTotal, prop:true});
+      }
+    }
+    // 대출 상환 (매도 월부터 중단)
+    let loanBal = 0;
+    for(const L of loans){
+      const k = idx - L.start;
+      if(saleIdx != null && idx >= saleIdx){ /* 매도 후 잔액 0 */ }
+      else {
+        if(k >= 1 && k <= L.sched.length){
+          const r = L.sched[k-1];
+          if(r.interest + r.principal > 0.5) ev.push({label:'대출 상환 (이자 ' + fmtManwon(r.interest) + ')', amt:-(r.interest + r.principal), prop:true, interest:r.interest, principal:r.principal});
+        }
+        loanBal += loanBalanceAt(L.sched, L.principal, k);
+      }
+    }
+    if(sale && idx === saleIdx){
+      ev.push({label:'매도 대금', amt:+S.price, prop:true});
+      if(sale.payoff) ev.push({label:'대출 잔액 상환', amt:-sale.payoff, prop:true});
+      if(sale.prepay) ev.push({label:'중도상환수수료', amt:-sale.prepay, prop:true});
+      if(deposit) ev.push({label: S.depositMode === 'return' ? '전세보증금 반환' : '전세보증금 승계 차감', amt:-deposit, prop:true});
+      if(sale.broker) ev.push({label:'매도 중개보수', amt:-sale.broker, prop:true});
+      if(sale.cgt.total) ev.push({label:'양도세+지방소득세', amt:-sale.cgt.total, prop:true});
+      if(sale.extras) ev.push({label:'매도 기타 비용', amt:-sale.extras, prop:true});
+    }
+    const inflow = ev.filter(e => e.amt > 0).reduce((s,e) => s+e.amt, 0);
+    const outflow = ev.filter(e => e.amt < 0).reduce((s,e) => s-e.amt, 0);
+    bal += inflow - outflow;
+    rows.push({idx, ym:idxToYm(idx), label:ymShort(idx), inflow, outflow, balance:bal, loanBal, events:ev});
+  }
+
+  // 실현 손익 (매수~매도 부동산 관련 현금흐름 합)
+  let realized = null;
+  if(sale){
+    let invested = payRows.reduce((s,p) => s + (+p.cash||0), 0) + costTotal - deposit;
+    let interestPaid = 0, principalPaid = 0;
+    for(const L of loans){
+      const kMax = Math.min(Math.max(0, saleIdx - L.start - 1), L.sched.length);
+      for(let k=0; k<kMax; k++){ interestPaid += L.sched[k].interest; principalPaid += L.sched[k].principal; }
+    }
+    const saleNet = (+S.price) - sale.payoff - sale.prepay - deposit - sale.broker - sale.cgt.total - sale.extras;
+    // 부동산 관련 전체 현금흐름 합 = 매도 순수령액 − 투입 현금 − 원리금 납입 누계
+    const profit = saleNet - invested - interestPaid - principalPaid;
+    realized = {
+      invested: Math.round(invested),
+      interestPaid: Math.round(interestPaid),
+      principalPaid: Math.round(principalPaid),
+      saleNet: Math.round(saleNet),
+      profit: Math.round(profit),
+      roi: invested > 0 ? profit / invested : null
+    };
+  }
+  return {rows, buyOn, sellOn, acqIdx, saleIdx, costs, costTotal, loans, sale, realized, start};
+}
+
+// ---------- 숫자 표기 ----------
+function fmtWon(n){ return Math.round(n).toLocaleString('ko-KR') + '원'; }
+function fmtManwon(n){ // 3.2억 / 2,500만 축약
+  const v = Math.round(n), a = Math.abs(v);
+  if(a >= 100000000){
+    const eok = v/100000000;
+    return (Math.round(eok*100)/100).toLocaleString('ko-KR', {maximumFractionDigits:2}) + '억';
+  }
+  if(a >= 10000) return Math.round(v/10000).toLocaleString('ko-KR') + '만';
+  if(a === 0) return '0';
+  return v.toLocaleString('ko-KR');
+}
+function koreanWon(n){ // 3억 2,500만원 읽기
+  const v = Math.round(+n||0); if(!v) return '';
+  const a = Math.abs(v), sign = v<0 ? '-' : '';
+  const eok = Math.floor(a/100000000), man = Math.floor((a%100000000)/10000), rest = a%10000;
+  let s = '';
+  if(eok) s += eok.toLocaleString('ko-KR') + '억 ';
+  if(man) s += man.toLocaleString('ko-KR') + '만 ';
+  if(rest || !s) s += rest.toLocaleString('ko-KR');
+  return sign + s.trim() + '원';
+}
+/*==CALC_CORE_END==*/
+
+// ============================================================
+//  앱 상태
+// ============================================================
+const LS_AUTO = 'cfc:autosave:v1';
+const LS_SCN = 'cfc:scenarios:v1';
+
+function nowYm(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+
+function defaultState(){
+  const ym = nowYm();
+  return {
+    flow: {
+      startMonth: ym, months: 24,
+      holdings: [{cat:'예금', desc:'', amount:0}],
+      monthly: [{cat:'급여', desc:'', amount:0}],
+      inflows: [], outflows: []
+    },
+    buy: {
+      type:'apt', over85:false, houses:1, adjusted:false,
+      tenant:false, deposit:0,
+      month:'', price:0,
+      payments: [{month:'', desc:'계약금', cash:0, loan:0}],
+      loan: {type:'annuity', rate:4.0, years:30, grace:0},
+      costOverrides:{}, extraCosts:[],
+      viewMonths: 36
+    },
+    sell: {
+      month:'', price:0, lived:false, liveMonths:0,
+      depositMode:'assume', costOverrides:{}, extraCosts:[]
+    },
+    rates: cloneRates(DEFAULT_RATES)
+  };
+}
+// JSON은 Infinity를 지원하지 않으므로 'INF' 문자열로 왕복
+function cloneRates(src){
+  return JSON.parse(JSON.stringify(src, (k,v) => v === Infinity ? 'INF' : v), (k,v) => v === 'INF' ? Infinity : v);
+}
+let state = defaultState();
+
+// ============================================================
+//  저장 / 불러오기
+// ============================================================
+function serialize(s){ return JSON.stringify(s, (k,v) => v === Infinity ? 'INF' : v); }
+function deserialize(str){ return JSON.parse(str, (k,v) => v === 'INF' ? Infinity : v); }
+function autosave(){ try{ localStorage.setItem(LS_AUTO, serialize(state)); }catch(e){} }
+function loadAuto(){
+  try{
+    const raw = localStorage.getItem(LS_AUTO);
+    if(raw){ state = mergeState(deserialize(raw)); return true; }
+  }catch(e){}
+  return false;
+}
+function mergeState(loaded){ // 구버전 데이터에 기본값 보충
+  const d = defaultState(); d.rates = cloneRates(DEFAULT_RATES);
+  const s = {...d, ...loaded};
+  s.flow = {...d.flow, ...(loaded.flow||{})};
+  s.buy = {...d.buy, ...(loaded.buy||{})};
+  s.buy.loan = {...d.buy.loan, ...((loaded.buy||{}).loan||{})};
+  s.sell = {...d.sell, ...(loaded.sell||{})};
+  s.rates = {...cloneRates(DEFAULT_RATES), ...(loaded.rates||{})};
+  if(!Array.isArray(s.rates.brackets) || !s.rates.brackets.length) s.rates.brackets = cloneRates(DEFAULT_RATES).brackets;
+  s.rates.brackets = s.rates.brackets.map(b => [b[0] == null ? Infinity : b[0], b[1], b[2]]);
+  return s;
+}
+function getScenarios(){ try{ return deserialize(localStorage.getItem(LS_SCN) || '{}'); }catch(e){ return {}; } }
+function setScenarios(o){ try{ localStorage.setItem(LS_SCN, serialize(o)); }catch(e){ alert('저장 공간이 부족합니다'); } }
+
+// ============================================================
+//  DOM 헬퍼
+// ============================================================
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+function el(tag, attrs, ...kids){
+  const e = document.createElement(tag);
+  for(const k in (attrs||{})){
+    if(k === 'class') e.className = attrs[k];
+    else if(k.startsWith('on')) e.addEventListener(k.slice(2), attrs[k]);
+    else if(k === 'html') e.innerHTML = attrs[k];
+    else e.setAttribute(k, attrs[k]);
+  }
+  for(const c of kids) if(c != null) e.append(c);
+  return e;
+}
+function parseMoney(str){ return +String(str).replace(/[^\d\-]/g,'') || 0; }
+function fmtComma(n){ return n ? (+n).toLocaleString('ko-KR') : ''; }
+function attachMoney(input, get, set){
+  input.value = fmtComma(get());
+  input.addEventListener('input', () => {
+    const digits = input.value.replace(/[^\d\-]/g,'');
+    if(digits === '' || digits === '-'){ set(0); onChange(); return; } // 음수 입력 도중('-')은 그대로 둠
+    const caretFromEnd = input.value.length - (input.selectionStart||0);
+    set(+digits || 0);
+    input.value = fmtComma(+digits||0);
+    const pos = Math.max(0, input.value.length - caretFromEnd);
+    input.setSelectionRange(pos, pos);
+    onChange();
+  });
+}
+
+// ============================================================
+//  입력 테이블 (행 추가/삭제)
+// ============================================================
+const TABLE_DEFS = {
+  holdings:  {path: () => state.flow.holdings,  cols:[{k:'cat',ph:'구분'},{k:'desc',ph:'내용'},{k:'amount',money:true,ph:'금액'}], blank:{cat:'',desc:'',amount:0}},
+  monthly:   {path: () => state.flow.monthly,   cols:[{k:'cat',ph:'구분'},{k:'desc',ph:'내용'},{k:'amount',money:true,ph:'금액'}], blank:{cat:'',desc:'',amount:0}},
+  inflows:   {path: () => state.flow.inflows,   cols:[{k:'month',month:true},{k:'desc',ph:'내용'},{k:'amount',money:true,ph:'금액'}], blank:{month:'',desc:'',amount:0}},
+  outflows:  {path: () => state.flow.outflows,  cols:[{k:'month',month:true},{k:'desc',ph:'내용'},{k:'amount',money:true,ph:'금액'}], blank:{month:'',desc:'',amount:0}},
+  payments:  {path: () => state.buy.payments,   cols:[{k:'month',month:true},{k:'desc',ph:'내용'},{k:'cash',money:true,ph:'현금'},{k:'loan',money:true,ph:'대출금액'}], blank:{month:'',desc:'',cash:0,loan:0}},
+  extraCosts:{path: () => state.buy.extraCosts, cols:[{k:'desc',ph:'항목명'},{k:'amount',money:true,ph:'금액'}], blank:{desc:'',amount:0}},
+  sellExtras:{path: () => state.sell.extraCosts,cols:[{k:'desc',ph:'항목명'},{k:'amount',money:true,ph:'금액'}], blank:{desc:'',amount:0}}
+};
+const TABLE_HEADS = {
+  holdings:['구분','내용','금액',''], monthly:['구분','내용','금액',''],
+  inflows:['날짜','내용','금액',''], outflows:['날짜','내용','금액',''],
+  payments:['날짜','내용','현금','대출금액',''],
+  extraCosts:['항목','금액',''], sellExtras:['항목','금액','']
+};
+function renderInputTable(name){
+  const def = TABLE_DEFS[name], rows = def.path();
+  const tbl = $('#tbl-' + name);
+  tbl.innerHTML = '';
+  const thr = el('tr');
+  for(const h of TABLE_HEADS[name]) thr.append(el('th', null, h));
+  tbl.append(el('thead', null, thr));
+  const tb = el('tbody');
+  rows.forEach((row, ri) => {
+    const tr = el('tr');
+    for(const c of def.cols){
+      const td = el('td');
+      let inp;
+      if(c.money){
+        inp = el('input', {class:'money', inputmode:'numeric', placeholder:c.ph||''});
+        attachMoney(inp, () => row[c.k], v => row[c.k] = v);
+      } else if(c.month){
+        inp = el('input', {type:'month'});
+        inp.value = row[c.k] || '';
+        inp.addEventListener('input', () => { row[c.k] = inp.value; onChange(); });
+      } else {
+        inp = el('input', {type:'text', placeholder:c.ph||''});
+        inp.value = row[c.k] || '';
+        inp.addEventListener('input', () => { row[c.k] = inp.value; onChange(); });
+      }
+      td.append(inp); tr.append(td);
+    }
+    tr.append(el('td', {class:'del'}, el('button', {class:'delrow', title:'삭제', onclick: () => { rows.splice(ri,1); renderInputTable(name); onChange(); }}, '✕')));
+    tb.append(tr);
+  });
+  tbl.append(tb);
+}
+$$('.addrow').forEach(btn => btn.addEventListener('click', () => {
+  const name = btn.dataset.add, def = TABLE_DEFS[name];
+  def.path().push({...def.blank});
+  renderInputTable(name); onChange();
+}));
+
+// ============================================================
+//  세그먼트 버튼
+// ============================================================
+function bindSeg(id, get, set){
+  const seg = $(id);
+  const sync = () => seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(get())));
+  seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { set(b.dataset.v); sync(); onChange(); }));
+  sync();
+  return sync;
+}
+
+// ============================================================
+//  차트 (SVG 바차트 + 대출잔액 라인)
+// ============================================================
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function niceStep(range, target){
+  const raw = range / target;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw||1)));
+  for(const m of [1,2,2.5,5,10]) if(raw <= m*mag) return m*mag;
+  return 10*mag;
+}
+function renderChart(wrapId, rows, opts){
+  const wrap = $(wrapId);
+  wrap.innerHTML = '';
+  if(!rows.length){ wrap.append(el('p', {class:'desc'}, '표시할 데이터가 없습니다')); return; }
+  const withLoan = opts && opts.withLoan && rows.some(r => r.loanBal > 0);
+  const n = rows.length;
+  const slot = Math.max(10, Math.min(34, Math.floor((wrap.clientWidth - 54) / n)));
+  const W = 54 + slot * n + 8, H = 230;
+  const mL = 46, mT = 14, mB = 26, mR = 8;
+  const pw = W - mL - mR, ph = H - mT - mB;
+
+  let vMin = 0, vMax = 0;
+  for(const r of rows){
+    vMin = Math.min(vMin, r.balance); vMax = Math.max(vMax, r.balance);
+    if(withLoan) vMax = Math.max(vMax, r.loanBal);
+  }
+  if(vMax === vMin){ vMax = vMin + 1; }
+  const step = niceStep(vMax - vMin, 4);
+  vMax = Math.ceil(vMax/step)*step; vMin = Math.floor(vMin/step)*step;
+  const y = v => mT + ph * (vMax - v) / (vMax - vMin);
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('width', W); svg.setAttribute('height', H);
+  svg.style.display = 'block';
+  const add = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for(const k in attrs) e.setAttribute(k, attrs[k]);
+    (parent||svg).append(e); return e;
+  };
+  // 그리드 + y라벨
+  for(let v = vMin; v <= vMax + step/2; v += step){
+    const yy = y(v);
+    add('line', {x1:mL, x2:W-mR, y1:yy, y2:yy, stroke:css('--grid'), 'stroke-width':1});
+    const t = add('text', {x:mL-5, y:yy+3, 'text-anchor':'end', 'font-size':9.5, fill:css('--ink-3')});
+    t.textContent = fmtManwon(v);
+  }
+  // 0 기준선
+  add('line', {x1:mL, x2:W-mR, y1:y(0), y2:y(0), stroke:css('--axis'), 'stroke-width':1});
+
+  const barW = Math.min(24, slot - 2);
+  const pos = css('--series-1'), neg = css('--neg');
+  const labelEvery = Math.ceil(n / Math.floor(pw / 34));
+  rows.forEach((r, i) => {
+    const cx = mL + slot*i + slot/2;
+    const v = r.balance;
+    const y0 = y(0), y1 = y(v);
+    const top = Math.min(y0, y1), h = Math.max(1, Math.abs(y1-y0));
+    const rr = Math.min(4, h/2);
+    const x0 = cx - barW/2;
+    // 데이터 끝만 4px 라운드, 기준선 쪽은 직각
+    let d;
+    if(v >= 0){
+      d = `M${x0},${y0} L${x0},${top+rr} Q${x0},${top} ${x0+rr},${top} L${x0+barW-rr},${top} Q${x0+barW},${top} ${x0+barW},${top+rr} L${x0+barW},${y0} Z`;
+    } else {
+      const bot = top + h;
+      d = `M${x0},${y0} L${x0+barW},${y0} L${x0+barW},${bot-rr} Q${x0+barW},${bot} ${x0+barW-rr},${bot} L${x0+rr},${bot} Q${x0},${bot} ${x0},${bot-rr} Z`;
+    }
+    add('path', {d, fill: v >= 0 ? pos : neg});
+    if(i % labelEvery === 0 || i === n-1){
+      const t = add('text', {x:cx, y:H-8, 'text-anchor':'middle', 'font-size':9, fill:css('--ink-3')});
+      t.textContent = r.label;
+    }
+  });
+  // 대출잔액 라인
+  if(withLoan){
+    let d = '';
+    rows.forEach((r, i) => {
+      const cx = mL + slot*i + slot/2;
+      d += (i ? 'L' : 'M') + cx + ',' + y(r.loanBal) + ' ';
+    });
+    add('path', {d, fill:'none', stroke:css('--series-2'), 'stroke-width':2, 'stroke-linejoin':'round', 'stroke-linecap':'round'});
+  }
+  // 마지막 잔액 직접 라벨
+  const last = rows[n-1];
+  const lt = add('text', {x:mL+slot*(n-1)+slot/2, y:y(last.balance) + (last.balance>=0 ? -5 : 12), 'text-anchor':'end', 'font-size':9.5, 'font-weight':700, fill:css('--ink-2')});
+  lt.textContent = fmtManwon(last.balance);
+
+  // 툴팁
+  const tip = el('div', {class:'chart-tip'});
+  rows.forEach((r, i) => {
+    const hit = add('rect', {x:mL+slot*i, y:mT, width:slot, height:ph+mB, fill:'transparent'});
+    const show = () => {
+      tip.innerHTML = '';
+      tip.append(el('div', {class:'t'}, r.ym.replace('-','년 ') + '월'));
+      tip.append(el('div', {class:'r'}, el('span', null, '유입'), el('span', null, fmtWon(r.inflow))));
+      tip.append(el('div', {class:'r'}, el('span', null, '유출'), el('span', null, fmtWon(r.outflow))));
+      tip.append(el('div', {class:'r'}, el('span', null, '잔액'), el('span', {style:'font-weight:700'}, fmtWon(r.balance))));
+      if(withLoan) tip.append(el('div', {class:'r'}, el('span', null, '대출잔액'), el('span', null, fmtWon(r.loanBal))));
+      const evs = r.events.filter(e => Math.abs(e.amt) > 0.5).slice(0, 6);
+      if(evs.length){
+        const ed = el('div', {class:'ev'});
+        for(const e of evs) ed.append(el('div', {class:'r'}, el('span', null, e.label), el('span', null, fmtManwon(e.amt))));
+        tip.append(ed);
+      }
+      tip.style.display = 'block';
+      const wr = wrap.getBoundingClientRect();
+      let lx = mL + slot*i + slot/2 - wrap.scrollLeft + 10;
+      if(lx + 170 > wr.width) lx -= 190;
+      tip.style.left = Math.max(2, lx) + 'px';
+      tip.style.top = '10px';
+    };
+    hit.addEventListener('pointerenter', show);
+    hit.addEventListener('pointerdown', show);
+  });
+  svg.addEventListener('pointerleave', () => tip.style.display = 'none');
+  wrap.append(svg, tip);
+  wrap.scrollLeft = wrap.scrollWidth;
+}
+
+// ============================================================
+//  출력 테이블
+// ============================================================
+function renderOutTable(wrapId, rows, withLoan){
+  const wrap = $(wrapId);
+  wrap.innerHTML = '';
+  if(!rows.length) return;
+  const tbl = el('table', {class:'out'});
+  const heads = withLoan ? ['월','유입','유출','월말 잔액','대출잔액'] : ['월','유입','유출','월말 잔액'];
+  const thr = el('tr'); heads.forEach(h => thr.append(el('th', null, h)));
+  tbl.append(el('thead', null, thr));
+  const tb = el('tbody');
+  for(const r of rows){
+    const hasEv = r.events.some(e => Math.abs(e.amt) > 0.5);
+    const tr = el('tr', {class: (r.balance < 0 ? 'neg ' : '') + (hasEv ? 'hasev' : '')});
+    tr.append(el('td', null, r.ym.replace('-','.')));
+    tr.append(el('td', null, r.inflow ? fmtWon(r.inflow) : '—'));
+    tr.append(el('td', null, r.outflow ? fmtWon(r.outflow) : '—'));
+    tr.append(el('td', {class:'bal'}, fmtWon(r.balance)));
+    if(withLoan) tr.append(el('td', null, r.loanBal > 0.5 ? fmtWon(r.loanBal) : '—'));
+    tb.append(tr);
+    if(hasEv){
+      const dtr = el('tr', {class:'evrow', style:'display:none'});
+      const td = el('td', {colspan: heads.length});
+      for(const e of r.events){
+        if(Math.abs(e.amt) < 0.5) continue;
+        td.append(el('div', null, (e.amt > 0 ? '＋ ' : '－ ') + e.label + ' : ' + fmtWon(Math.abs(e.amt))));
+      }
+      dtr.append(td); tb.append(dtr);
+      tr.addEventListener('click', () => {
+        const open = dtr.style.display === 'none';
+        dtr.style.display = open ? '' : 'none';
+        tr.classList.toggle('open', open);
+      });
+    }
+  }
+  tbl.append(tb);
+  wrap.append(tbl);
+}
+
+// ============================================================
+//  부대비용 테이블 (자동 + 오버라이드)
+// ============================================================
+function renderCostTable(){
+  const tbl = $('#tbl-costs');
+  tbl.innerHTML = '';
+  const items = state.buy.price > 0 ? resolvedCosts(state.buy, state.rates) : [];
+  const autoItems = items.filter(i => i.key !== 'x');
+  if(!autoItems.length){
+    tbl.append(el('tr', null, el('td', {class:'auto-note'}, '매입 금액을 입력하면 자동 계산됩니다')));
+  }
+  for(const it of autoItems){
+    const tr = el('tr', {class: it.overridden ? 'overridden' : ''});
+    tr.append(el('td', null, el('div', null, it.label), el('div', {class:'auto-note'}, it.overridden ? '수정됨 (자동: ' + fmtManwon(it.autoAmount) + ')' : (it.note || '자동'))));
+    const td = el('td', {class:'amt'});
+    const inp = el('input', {class:'money', inputmode:'numeric'});
+    inp.value = fmtComma(it.amount);
+    inp.addEventListener('input', () => {
+      const v = parseMoney(inp.value);
+      state.buy.costOverrides[it.key] = v;
+      inp.value = fmtComma(v);
+      onChange(true); // 코스트 테이블 자체는 다시 안 그림 (포커스 유지)
+    });
+    td.append(inp); tr.append(td);
+    const rst = el('td', {class:'rst'});
+    if(it.overridden || state.buy.costOverrides[it.key] != null){
+      rst.append(el('button', {class:'delrow', title:'자동값 복원', onclick: () => { delete state.buy.costOverrides[it.key]; renderCostTable(); onChange(); }}, '↺'));
+    }
+    rst && tr.append(rst);
+    tbl.append(tr);
+  }
+}
+function renderSellCostTable(tl){
+  const tbl = $('#tbl-sellCosts');
+  tbl.innerHTML = '';
+  if(!tl.sale){
+    tbl.append(el('tr', null, el('td', {class:'auto-note'}, '매수 시나리오와 매도 정보를 입력하면 자동 계산됩니다')));
+    return;
+  }
+  const S = state.sell, sale = tl.sale;
+  const defs = [
+    {key:'broker', label:'매도 중개보수', note:'상한요율', amount:sale.broker, auto:sale.brokerAuto},
+    {key:'prepay', label:'대출 중도상환수수료', note:'잔액 × ' + state.rates.prepayFee + '%', amount:sale.prepay, auto:sale.prepayAuto}
+  ];
+  for(const it of defs){
+    const ovd = S.costOverrides[it.key] != null;
+    const tr = el('tr', {class: ovd ? 'overridden' : ''});
+    tr.append(el('td', null, el('div', null, it.label), el('div', {class:'auto-note'}, ovd ? '수정됨 (자동: ' + fmtManwon(it.auto) + ')' : it.note)));
+    const td = el('td', {class:'amt'});
+    const inp = el('input', {class:'money', inputmode:'numeric'});
+    inp.value = fmtComma(it.amount);
+    inp.addEventListener('input', () => {
+      S.costOverrides[it.key] = parseMoney(inp.value);
+      inp.value = fmtComma(S.costOverrides[it.key]);
+      onChange(true);
+    });
+    td.append(inp); tr.append(td);
+    const rst = el('td', {class:'rst'});
+    if(ovd) rst.append(el('button', {class:'delrow', title:'자동값 복원', onclick: () => { delete S.costOverrides[it.key]; onChange(); }}, '↺'));
+    tr.append(rst);
+    tbl.append(tr);
+  }
+  // 양도세 요약 행 (수정은 세율 설정에서)
+  const trTax = el('tr');
+  trTax.append(el('td', null, el('div', null, '양도소득세 + 지방소득세'), el('div', {class:'auto-note'}, sale.cgt.rateLabel)));
+  trTax.append(el('td', {class:'amt', style:'text-align:right;font-weight:700;font-variant-numeric:tabular-nums'}, fmtWon(sale.cgt.total)));
+  trTax.append(el('td', {class:'rst'}));
+  tbl.append(trTax);
+}
+
+// ============================================================
+//  세율 설정 바인딩
+// ============================================================
+function bindRates(){
+  $$('[data-rate]').forEach(inp => {
+    const key = inp.dataset.rate;
+    if(inp.classList.contains('money')){
+      inp.value = fmtComma(state.rates[key]);
+      inp.addEventListener('input', () => { state.rates[key] = parseMoney(inp.value); inp.value = fmtComma(state.rates[key]); onChange(true); });
+    } else {
+      inp.value = state.rates[key];
+      inp.addEventListener('input', () => { state.rates[key] = +inp.value || 0; onChange(true); });
+    }
+  });
+  renderBrackets();
+  $('#btnResetRates').addEventListener('click', () => {
+    state.rates = cloneRates(DEFAULT_RATES);
+    syncRateInputs(); renderBrackets(); onChange();
+  });
+}
+function syncRateInputs(){
+  $$('[data-rate]').forEach(inp => {
+    const key = inp.dataset.rate;
+    inp.value = inp.classList.contains('money') ? fmtComma(state.rates[key]) : state.rates[key];
+  });
+}
+function renderBrackets(){
+  const tb = $('#tbl-brackets tbody');
+  tb.innerHTML = '';
+  state.rates.brackets.forEach((b, i) => {
+    const tr = el('tr');
+    const tdL = el('td');
+    if(b[0] === Infinity){ tdL.append(el('span', {style:'font-size:.78rem;color:var(--ink-3);padding-left:6px'}, '초과분')); }
+    else {
+      const inp = el('input', {class:'money', inputmode:'numeric'});
+      inp.value = fmtComma(b[0]);
+      inp.addEventListener('input', () => { b[0] = parseMoney(inp.value); inp.value = fmtComma(b[0]); onChange(true); });
+      tdL.append(inp);
+    }
+    tr.append(tdL);
+    const tdR = el('td'); const rInp = el('input', {type:'number', step:'1', style:'text-align:right'});
+    rInp.value = b[1];
+    rInp.addEventListener('input', () => { b[1] = +rInp.value || 0; onChange(true); });
+    tdR.append(rInp); tr.append(tdR);
+    const tdD = el('td'); const dInp = el('input', {class:'money', inputmode:'numeric'});
+    dInp.value = fmtComma(b[2]);
+    dInp.addEventListener('input', () => { b[2] = parseMoney(dInp.value); dInp.value = fmtComma(b[2]); onChange(true); });
+    tdD.append(dInp); tr.append(tdD);
+    tb.append(tr);
+  });
+}
+
+// ============================================================
+//  메인 재계산 + 렌더
+// ============================================================
+const LOAN_DESC = {
+  annuity:'매월 같은 금액(원금+이자)을 상환 — 가장 일반적',
+  equal_principal:'매월 같은 원금 + 남은 잔액 이자 — 초반 상환액이 크고 점점 줄어듦',
+  bullet:'매월 이자만 내고 만기에 원금 일시 상환'
+};
+let changeTimer = null;
+function onChange(skipInputRerender){
+  clearTimeout(changeTimer);
+  changeTimer = setTimeout(() => { recalc(skipInputRerender); autosave(); }, 120);
+}
+function recalc(skipInputRerender){
+  // --- 소계 ---
+  $('#sum-holdings').textContent = fmtWon(state.flow.holdings.reduce((s,r) => s+(+r.amount||0), 0));
+  $('#sum-monthly').textContent = fmtWon(state.flow.monthly.reduce((s,r) => s+(+r.amount||0), 0));
+  $('#buyPriceWon').textContent = koreanWon(state.buy.price);
+  $('#buyDepositWon').textContent = koreanWon(state.buy.deposit);
+  $('#sellPriceWon').textContent = koreanWon(state.sell.price);
+  $('#loanTypeDesc').textContent = LOAN_DESC[state.buy.loan.type] || '';
+
+  // --- 지불 일정 검증 ---
+  const cashSum = state.buy.payments.reduce((s,p) => s+(+p.cash||0), 0);
+  const loanSum = state.buy.payments.reduce((s,p) => s+(+p.loan||0), 0);
+  const dep = state.buy.tenant ? (+state.buy.deposit||0) : 0;
+  const pv = $('#payValid');
+  if(state.buy.price > 0){
+    const total = cashSum + loanSum + dep;
+    const diff = state.buy.price - total;
+    if(Math.abs(diff) < 1){
+      pv.className = 'valid ok';
+      pv.textContent = '✓ 현금 ' + fmtManwon(cashSum) + ' + 대출 ' + fmtManwon(loanSum) + (dep ? ' + 보증금 ' + fmtManwon(dep) : '') + ' = 매입금액과 일치';
+    } else {
+      pv.className = 'valid warn';
+      pv.textContent = '⚠ 현금+대출' + (dep ? '+보증금' : '') + ' 합계가 매입금액과 ' + fmtManwon(Math.abs(diff)) + ' ' + (diff > 0 ? '부족' : '초과') + '합니다';
+    }
+    pv.style.display = '';
+  } else pv.style.display = 'none';
+
+  // --- 첫 달 상환액 미리보기 ---
+  const firstLoan = state.buy.payments.find(p => +p.loan > 0);
+  if(firstLoan){
+    const sch = loanSchedule({principal:+firstLoan.loan, annualRate:state.buy.loan.rate, years:state.buy.loan.years, graceMonths:state.buy.loan.grace, type:state.buy.loan.type});
+    const r = sch[0];
+    $('#loanFirstPay').textContent = r ? '월 ' + fmtManwon(r.interest + r.principal) + '원' : '—';
+  } else $('#loanFirstPay').textContent = '—';
+
+  // --- 부대비용 (해당 표에 입력 중이면 다시 그리지 않아 포커스 유지) ---
+  const ae = document.activeElement;
+  if(!ae || !ae.closest || !ae.closest('#tbl-costs')) renderCostTable();
+  const costItems = state.buy.price > 0 ? resolvedCosts(state.buy, state.rates) : [];
+  $('#sum-costs').textContent = fmtWon(costItems.reduce((s,c) => s+c.amount, 0));
+
+  // --- 탭1 ---
+  const tl1 = buildTimeline(state, {includeBuy:false, includeSell:false, months:+state.flow.months || 24});
+  renderChart('#chart-flow', tl1.rows, {});
+  renderOutTable('#table-flow', tl1.rows, false);
+
+  // --- 탭2 ---
+  const buyMonthsWanted = +state.buy.viewMonths || 36;
+  let m2 = buyMonthsWanted;
+  if(state.buy.payments.some(p => p.month)){
+    const lastPay = Math.max(...state.buy.payments.filter(p => p.month).map(p => ymToIdx(p.month)));
+    m2 = Math.max(m2, lastPay - ymToIdx(state.flow.startMonth) + 2);
+  }
+  const tl2 = buildTimeline(state, {includeBuy:true, includeSell:false, months:m2});
+  renderChart('#chart-buy', tl2.rows, {withLoan:true});
+  renderLegend('#legend-buy', tl2.rows.some(r => r.loanBal > 0));
+  renderOutTable('#table-buy', tl2.rows, true);
+
+  // --- 탭3 ---
+  const sv = $('#sellValid');
+  let m3 = m2;
+  if(state.sell.month){
+    m3 = Math.max(m3, ymToIdx(state.sell.month) - ymToIdx(state.flow.startMonth) + 3);
+  }
+  const tl3 = buildTimeline(state, {includeBuy:true, includeSell:true, months:m3});
+  if(state.sell.month && state.sell.price > 0 && !tl3.sellOn){
+    sv.style.display = '';
+    sv.textContent = '⚠ 매도 계산에는 매수 시나리오(매입금액·지불일정)가 먼저 필요합니다';
+  } else if(tl3.sellOn && tl3.saleIdx < tl3.acqIdx){
+    sv.style.display = '';
+    sv.textContent = '⚠ 매도 월이 잔금(취득) 월보다 빠릅니다';
+  } else sv.style.display = 'none';
+
+  if(!ae || !ae.closest || !ae.closest('#tbl-sellCosts')) renderSellCostTable(tl3);
+  renderCgtBreakdown(tl3);
+  renderProfit(tl3);
+  renderChart('#chart-sell', tl3.rows, {withLoan:true});
+  renderLegend('#legend-sell', tl3.rows.some(r => r.loanBal > 0));
+  renderOutTable('#table-sell', tl3.rows, true);
+}
+function renderLegend(id, withLoan){
+  const lg = $(id);
+  lg.innerHTML = '';
+  if(withLoan){
+    lg.append(el('span', null, el('i', {style:'background:var(--series-1)'}), '현금 잔액 (막대)'));
+    lg.append(el('span', null, el('i', {style:'background:var(--series-2);border-radius:2px;height:3px;vertical-align:3px'}), '대출 잔액 (선)'));
+  }
+}
+function renderCgtBreakdown(tl){
+  const ul = $('#cgtBreakdown');
+  ul.innerHTML = '';
+  if(!tl.sale){ ul.append(el('li', null, el('span', {class:'sub'}, '매수·매도 정보를 입력하면 계산됩니다'), el('span'))); return; }
+  const c = tl.sale.cgt, S = tl.sale;
+  const li = (a, b, cls) => ul.append(el('li', {class:cls||''}, el('span', null, a), el('span', null, b)));
+  li('보유 기간', Math.floor(S.holdMonths/12) + '년 ' + (S.holdMonths%12) + '개월' + (S.liveMonths ? ' (거주 ' + S.liveMonths + '개월)' : ''));
+  li('양도차익 (매도가 − 취득가 − 필요경비)', fmtWon(c.gain));
+  if(c.note) li('판정', c.note);
+  if(c.exempt && c.exemptPortion) li('비과세 차익', '−' + fmtWon(c.exemptPortion));
+  if(c.ltsdRate) li('장기보유특별공제', c.ltsdRate + '%');
+  li('과세표준 (기본공제 ' + fmtManwon(state.rates.basicDeduction) + ' 차감)', fmtWon(c.taxBase));
+  li('적용 세율', c.rateLabel);
+  li('양도소득세', fmtWon(c.tax));
+  li('지방소득세 (' + state.rates.localSurtax + '%)', fmtWon(c.localTax));
+  li('총 납부 세액', fmtWon(c.total), 'tot');
+}
+function renderProfit(tl){
+  const grid = $('#profitSummary'), bd = $('#profitBreakdown');
+  grid.innerHTML = ''; bd.innerHTML = '';
+  if(!tl.realized){
+    grid.append(el('div', {class:'tile hero'}, el('div', {class:'l'}, '실현 손익'), el('div', {class:'v'}, '—'), el('div', {class:'s'}, '매수·매도 정보를 모두 입력하세요')));
+    return;
+  }
+  const r = tl.realized;
+  const good = r.profit >= 0;
+  grid.append(el('div', {class:'tile hero'},
+    el('div', {class:'l'}, '매도 시점 실현 손익'),
+    el('div', {class:'v ' + (good ? 'good' : 'bad')}, (good ? '+' : '−') + koreanWon(Math.abs(r.profit))),
+    el('div', {class:'s'}, r.roi != null ? '투입 현금 대비 ' + (r.roi*100).toFixed(1) + '%' : '')));
+  grid.append(el('div', {class:'tile'}, el('div', {class:'l'}, '투입 현금 (매수+부대비용−보증금)'), el('div', {class:'v'}, fmtManwon(r.invested) + '원')));
+  grid.append(el('div', {class:'tile'}, el('div', {class:'l'}, '매도 순수령액'), el('div', {class:'v'}, fmtManwon(r.saleNet) + '원')));
+  grid.append(el('div', {class:'tile'}, el('div', {class:'l'}, '납부 이자 누계'), el('div', {class:'v'}, fmtManwon(r.interestPaid) + '원')));
+  grid.append(el('div', {class:'tile'}, el('div', {class:'l'}, '상환 원금 누계'), el('div', {class:'v'}, fmtManwon(r.principalPaid) + '원')));
+  const li = (a,b,cls) => bd.append(el('li', {class:cls||''}, el('span', null, a), el('span', null, b)));
+  li('매도 금액', '+' + fmtWon(+state.sell.price));
+  if(tl.sale.payoff) li('대출 잔액 상환', '−' + fmtWon(tl.sale.payoff));
+  if(tl.sale.prepay) li('중도상환수수료', '−' + fmtWon(tl.sale.prepay));
+  const dep = state.buy.tenant ? +state.buy.deposit||0 : 0;
+  if(dep) li('전세보증금 ' + (state.sell.depositMode === 'return' ? '반환' : '승계 차감'), '−' + fmtWon(dep));
+  if(tl.sale.broker) li('매도 중개보수', '−' + fmtWon(tl.sale.broker));
+  if(tl.sale.cgt.total) li('양도세+지방소득세', '−' + fmtWon(tl.sale.cgt.total));
+  if(tl.sale.extras) li('기타 매도 비용', '−' + fmtWon(tl.sale.extras));
+  li('= 매도 순수령액', fmtWon(r.saleNet), 'tot');
+}
+
+// ============================================================
+//  탭 전환
+// ============================================================
+$$('nav.tabs button').forEach(b => b.addEventListener('click', () => {
+  $$('nav.tabs button').forEach(x => x.classList.toggle('active', x === b));
+  $$('.tabpane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + b.dataset.tab));
+  recalc(); // 차트 폭 재계산
+}));
+
+// ============================================================
+//  시나리오 UI
+// ============================================================
+let currentScn = '';
+function refreshScnSelect(){
+  const sel = $('#scnSelect');
+  sel.innerHTML = '';
+  sel.append(el('option', {value:''}, '(자동 저장 데이터)'));
+  const scns = getScenarios();
+  for(const name of Object.keys(scns).sort()){
+    sel.append(el('option', {value:name, ...(name === currentScn ? {selected:''} : {})}, name));
+  }
+}
+$('#scnSelect').addEventListener('change', e => {
+  const name = e.target.value;
+  if(!name){ currentScn = ''; return; }
+  const scns = getScenarios();
+  if(scns[name]){
+    state = mergeState(scns[name].state);
+    currentScn = name;
+    initInputs(); recalc(); autosave();
+  }
+});
+$('#btnSaveScn').addEventListener('click', () => {
+  const name = prompt('시나리오 이름', currentScn || '시나리오 1');
+  if(!name) return;
+  const scns = getScenarios();
+  scns[name] = {savedAt: new Date().toISOString(), state};
+  setScenarios(scns);
+  currentScn = name;
+  refreshScnSelect();
+});
+$('#btnDelScn').addEventListener('click', () => {
+  if(!currentScn){ alert('삭제할 시나리오를 먼저 선택하세요'); return; }
+  if(!confirm('「' + currentScn + '」 시나리오를 삭제할까요?')) return;
+  const scns = getScenarios();
+  delete scns[currentScn];
+  setScenarios(scns);
+  currentScn = '';
+  refreshScnSelect();
+});
+$('#btnExport').addEventListener('click', () => {
+  const data = serialize({exportedAt: new Date().toISOString(), current: state, scenarios: getScenarios()});
+  const blob = new Blob([data], {type:'application/json'});
+  const a = el('a', {href: URL.createObjectURL(blob), download: '현금흐름계산기-백업-' + nowYm() + '.json'});
+  document.body.append(a); a.click(); a.remove();
+});
+$('#btnImport').addEventListener('click', () => $('#fileImport').click());
+$('#fileImport').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if(!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try{
+      const data = deserialize(rd.result);
+      if(data.scenarios) setScenarios({...getScenarios(), ...data.scenarios});
+      if(data.current){ state = mergeState(data.current); initInputs(); recalc(); autosave(); }
+      refreshScnSelect();
+      alert('가져오기 완료');
+    }catch(err){ alert('파일을 읽을 수 없습니다: ' + err.message); }
+  };
+  rd.readAsText(f);
+  e.target.value = '';
+});
+
+// ============================================================
+//  초기화: state → 입력 UI 동기화
+// ============================================================
+function initInputs(){
+  Object.keys(TABLE_DEFS).forEach(renderInputTable);
+
+  $('#flowStart').value = state.flow.startMonth;
+  $('#flowStart').oninput = e => { if(e.target.value){ state.flow.startMonth = e.target.value; onChange(); } };
+  $('#flowMonths').value = state.flow.months;
+  $('#flowMonths').oninput = e => { state.flow.months = +e.target.value || 24; onChange(); };
+
+  bindSeg('#segType', () => state.buy.type, v => state.buy.type = v);
+  bindSeg('#segArea', () => state.buy.over85 ? 1 : 0, v => state.buy.over85 = v === '1');
+  bindSeg('#segHouses', () => state.buy.houses, v => state.buy.houses = +v);
+  bindSeg('#segAdj', () => state.buy.adjusted ? 1 : 0, v => state.buy.adjusted = v === '1');
+  bindSeg('#segLoan', () => state.buy.loan.type, v => state.buy.loan.type = v);
+  bindSeg('#segDeposit', () => state.sell.depositMode, v => state.sell.depositMode = v);
+
+  $('#buyMonth').value = state.buy.month;
+  $('#buyMonth').oninput = e => {
+    state.buy.month = e.target.value;
+    // 지불 일정이 비어있으면 매입 월로 채워줌
+    if(state.buy.month && state.buy.payments.length && !state.buy.payments[0].month){
+      state.buy.payments[0].month = state.buy.month;
+      renderInputTable('payments');
+    }
+    onChange();
+  };
+  const bp = $('#buyPrice'); bp.value = fmtComma(state.buy.price);
+  attachMoney(bp, () => state.buy.price, v => state.buy.price = v);
+  $('#buyTenant').checked = state.buy.tenant;
+  $('#buyTenant').onchange = e => { state.buy.tenant = e.target.checked; $('#depositRow').style.display = e.target.checked ? '' : 'none'; $('#depositModeRow').style.display = e.target.checked ? '' : 'none'; onChange(); };
+  $('#depositRow').style.display = state.buy.tenant ? '' : 'none';
+  const bd = $('#buyDeposit'); bd.value = fmtComma(state.buy.deposit);
+  attachMoney(bd, () => state.buy.deposit, v => state.buy.deposit = v);
+
+  $('#loanRate').value = state.buy.loan.rate;
+  $('#loanRate').oninput = e => { state.buy.loan.rate = +e.target.value || 0; onChange(); };
+  $('#loanYears').value = state.buy.loan.years;
+  $('#loanYears').oninput = e => { state.buy.loan.years = +e.target.value || 1; onChange(); };
+  $('#loanGrace').value = state.buy.loan.grace;
+  $('#loanGrace').oninput = e => { state.buy.loan.grace = +e.target.value || 0; onChange(); };
+  $('#buyMonths').value = state.buy.viewMonths;
+  $('#buyMonths').oninput = e => { state.buy.viewMonths = +e.target.value || 36; onChange(); };
+
+  $('#sellMonth').value = state.sell.month;
+  $('#sellMonth').oninput = e => { state.sell.month = e.target.value; onChange(); };
+  const sp = $('#sellPrice'); sp.value = fmtComma(state.sell.price);
+  attachMoney(sp, () => state.sell.price, v => state.sell.price = v);
+  $('#sellLived').checked = state.sell.lived;
+  $('#sellLived').onchange = e => { state.sell.lived = e.target.checked; $('#liveMonthsRow').style.display = e.target.checked ? '' : 'none'; onChange(); };
+  $('#liveMonthsRow').style.display = state.sell.lived ? '' : 'none';
+  $('#depositModeRow').style.display = state.buy.tenant ? '' : 'none';
+  $('#sellLiveMonths').value = state.sell.liveMonths;
+  $('#sellLiveMonths').oninput = e => { state.sell.liveMonths = +e.target.value || 0; onChange(); };
+
+  syncRateInputs(); renderBrackets();
+}
+
+// ---- 부팅 ----
+loadAuto();
+initInputs();
+bindRates();
+refreshScnSelect();
+recalc();
+window.addEventListener('resize', () => onChange(true));
+</script>
+</body>
+</html>
