@@ -13,7 +13,7 @@ assert.ok(m, 'index.html에서 CALC_CORE 블록을 찾지 못함');
 
 const exports_ = ['ymToIdx','idxToYm','ymShort','DEFAULT_RATES','loanSchedule','loanBalanceAt',
   'acqTaxRates','brokerageFee','stampDuty','bondCost','legalFee','acquisitionCosts',
-  'capitalGainsTax','resolvedCosts','buildTimeline','fmtManwon'];
+  'capitalGainsTax','resolvedCosts','buildTimeline','fmtManwon','manFloor','fmtKR'];
 const dir = mkdtempSync(join(tmpdir(), 'cfc-'));
 const modPath = join(dir, 'core.mjs');
 writeFileSync(modPath, m[1] + '\nexport {' + exports_.join(',') + '};\n');
@@ -110,11 +110,12 @@ test('법무사 보수: 1억→26만 / 5억→60만', () => {
 });
 
 console.log('\n[취득 부대비용 통합]');
-test('아파트 7억 / 1주택 / 85㎡이하: 취득세 약 1,167만 등', () => {
+test('아파트 7억 / 1주택 / 85㎡이하: 취득세 1,166만 (만원 절사) 등', () => {
   const R = C.DEFAULT_RATES;
   const items = C.acquisitionCosts({price:7e8, houses:1, adjusted:false, over85:false, type:'apt'}, R);
   const get = k => items.find(i => i.key === k).amount;
-  approx(get('acq'), 7e8 * (7e8*2/3e8-3) / 100, 1000); // ≈11,666,667
+  assert.equal(get('acq'), C.manFloor(7e8 * (7e8*2/3e8-3) / 100)); // 11,666,666 → 11,660,000
+  assert.equal(get('acq') % 10000, 0, '만원 절사');
   assert.equal(get('rural'), 0);
   assert.equal(get('broker'), 2800000);
   assert.equal(get('stamp'), 150000);
@@ -132,15 +133,16 @@ test('조정지역 취득 1주택, 거주 안 함 → 비과세 불가', () => {
   assert.ok(!c.exempt);
   assert.ok(c.total > 0);
 });
-test('1년 미만 단기 70%: 차익 1억 → (1억-250만)×70% + 지방세 10%', () => {
+test('1년 미만 단기 70%: 차익 1억 → (1억-250만)×70% + 지방세 10% (만원 절사)', () => {
   const c = C.capitalGainsTax({sellPrice:8e8, buyPrice:7e8, expenses:0, holdMonths:10, houses:2}, R);
-  const expected = Math.round((1e8 - 2500000) * 0.7);
+  const expected = C.manFloor((1e8 - 2500000) * 0.7);
   assert.equal(c.tax, expected);
-  assert.equal(c.localTax, Math.round(expected * 0.1));
+  assert.equal(c.localTax, C.manFloor(expected * 0.1));
+  assert.equal(c.total % 10000, 0, '만원 절사');
 });
 test('1~2년 단기 60%', () => {
   const c = C.capitalGainsTax({sellPrice:8e8, buyPrice:7e8, expenses:0, holdMonths:18, houses:2}, R);
-  assert.equal(c.tax, Math.round((1e8 - 2500000) * 0.6));
+  assert.equal(c.tax, C.manFloor((1e8 - 2500000) * 0.6));
 });
 test('일반 누진: 과표 5,000만 → 15% − 126만 = 624만', () => {
   // 차익 5,250만, 보유 2년(장특공 미달), 2주택 → 과표 5,000만
@@ -161,6 +163,20 @@ test('양도차익 없으면 세금 0', () => {
 test('장특공제 일반: 10년 보유 → 20%', () => {
   const c = C.capitalGainsTax({sellPrice:9e8, buyPrice:7e8, expenses:0, holdMonths:120, houses:2}, R);
   assert.equal(c.ltsdRate, 20);
+});
+
+console.log('\n[표기]');
+test('fmtKR: 만원 절사 억/만 표기', () => {
+  assert.equal(C.fmtKR(325005326), '3억 2,500만원');
+  assert.equal(C.fmtKR(300000000), '3억원');
+  assert.equal(C.fmtKR(25000000), '2,500만원');
+  assert.equal(C.fmtKR(-13000000), '-1,300만원');
+  assert.equal(C.fmtKR(9999), '0원');
+  assert.equal(C.fmtKR(0), '0원');
+});
+test('manFloor: 만원 미만 절사', () => {
+  assert.equal(C.manFloor(18666667), 18660000);
+  assert.equal(C.manFloor(-18666667), -18660000);
 });
 
 console.log('\n[통합 타임라인]');

@@ -222,13 +222,13 @@ table.cost tr.overridden .auto-note{color:var(--accent)}
   <!-- ================= TAB 1 : FLOW ================= -->
   <section class="tabpane active" id="pane-flow">
     <div class="card">
-      <h2>현재 보유 현금 <span class="hint">구분 | 내용 | 금액</span></h2>
+      <h2>현재 보유 현금 <span class="hint">구분 | 내용 | 금액(만원)</span></h2>
       <table class="inp" id="tbl-holdings"></table>
       <button class="btn small addrow" data-add="holdings">＋ 항목 추가</button>
       <div class="subtotal">합계 <b id="sum-holdings">0원</b></div>
     </div>
     <div class="card">
-      <h2>매월 반복 유입 <span class="hint">지출은 음수(-)로 입력</span></h2>
+      <h2>매월 반복 유입 <span class="hint">만원 단위 · 지출은 음수(-)로 입력</span></h2>
       <table class="inp" id="tbl-monthly"></table>
       <button class="btn small addrow" data-add="monthly">＋ 항목 추가</button>
       <div class="subtotal">월 합계 <b id="sum-monthly">0원</b></div>
@@ -283,12 +283,12 @@ table.cost tr.overridden .auto-note{color:var(--accent)}
           </div>
         </div>
         <div class="fld"><label>매입 년월</label><input type="month" id="buyMonth"></div>
-        <div class="fld"><label>매입 금액 (원)</label><input class="money" id="buyPrice" inputmode="numeric"><div class="won" id="buyPriceWon"></div></div>
+        <div class="fld"><label>매입 금액 (만원)</label><input class="money" id="buyPrice" inputmode="numeric"><div class="won" id="buyPriceWon"></div></div>
         <div class="fld full">
           <div class="checkline"><input type="checkbox" id="buyTenant"><label for="buyTenant" style="font-size:.85rem;color:var(--ink-1);font-weight:400">세끼고 매수 (전세보증금 승계)</label></div>
         </div>
         <div class="fld full" id="depositRow" style="display:none">
-          <label>전세보증금 (원)</label><input class="money" id="buyDeposit" inputmode="numeric"><div class="won" id="buyDepositWon"></div>
+          <label>전세보증금 (만원)</label><input class="money" id="buyDeposit" inputmode="numeric"><div class="won" id="buyDepositWon"></div>
         </div>
       </div>
     </div>
@@ -356,7 +356,7 @@ table.cost tr.overridden .auto-note{color:var(--accent)}
       <h2>매도 정보</h2>
       <div class="fgrid">
         <div class="fld"><label>매도 년월</label><input type="month" id="sellMonth"></div>
-        <div class="fld"><label>매도 금액 (원)</label><input class="money" id="sellPrice" inputmode="numeric"><div class="won" id="sellPriceWon"></div></div>
+        <div class="fld"><label>매도 금액 (만원)</label><input class="money" id="sellPrice" inputmode="numeric"><div class="won" id="sellPriceWon"></div></div>
         <div class="fld full">
           <div class="checkline"><input type="checkbox" id="sellLived"><label for="sellLived" style="font-size:.85rem;color:var(--ink-1);font-weight:400">실거주 의무 이행 (거주했음)</label></div>
         </div>
@@ -391,12 +391,12 @@ table.cost tr.overridden .auto-note{color:var(--accent)}
           <div class="fld"><label>1년 미만 단기세율 (%)</label><input type="number" step="1" data-rate="cgtShort1"></div>
           <div class="fld"><label>1~2년 단기세율 (%)</label><input type="number" step="1" data-rate="cgtShort2"></div>
           <div class="fld"><label>지방소득세 (양도세의 %)</label><input type="number" step="1" data-rate="localSurtax"></div>
-          <div class="fld"><label>1주택 비과세 한도 (원)</label><input class="money" inputmode="numeric" data-rate="exemptCap"></div>
-          <div class="fld"><label>기본공제 (원)</label><input class="money" inputmode="numeric" data-rate="basicDeduction"></div>
+          <div class="fld"><label>1주택 비과세 한도 (만원)</label><input class="money" inputmode="numeric" data-rate="exemptCap"></div>
+          <div class="fld"><label>기본공제 (만원)</label><input class="money" inputmode="numeric" data-rate="basicDeduction"></div>
           <div class="fld"><label>중도상환수수료율 (%)</label><input type="number" step="0.1" data-rate="prepayFee"></div>
         </div>
         <table class="brk" id="tbl-brackets">
-          <thead><tr><th style="text-align:left">과세표준 상한 (원)</th><th>세율(%)</th><th>누진공제(원)</th></tr></thead>
+          <thead><tr><th style="text-align:left">과세표준 상한 (만원)</th><th>세율(%)</th><th>누진공제(만원)</th></tr></thead>
           <tbody></tbody>
         </table>
         <p class="note">기본 누진세율표(6~45%)와 단기 양도세율(1년 미만 70%, 1~2년 60%)은 2026년 소득세법 기준. 1세대 1주택 비과세: 보유 2년 이상(조정대상지역 취득 시 거주 2년 포함), 12억 초과분만 과세. 장기보유특별공제는 자동 적용(1주택 거주 시 연 8%p 최대 80%, 일반 연 2%p 최대 30%). <b>계산 결과는 참고용 추정치이며 실제 세액은 세무사와 확인하세요.</b></p>
@@ -585,15 +585,15 @@ function acquisitionCosts(buy, R){
   const tr = acqTaxRates({price: p, houses: buy.houses, adjusted: buy.adjusted, over85: buy.over85, ruralRate: R.ruralRate});
   const ratio = buy.type === 'villa' ? R.stdRatioVilla : R.stdRatioApt;
   const pct = v => (Math.round(v * 100) / 100) + '%';
-  const items = [
-    {key:'acq',    label:'취득세',        note: pct(tr.acq),  amount: Math.round(p * tr.acq / 100)},
-    {key:'edu',    label:'지방교육세',    note: pct(tr.edu),  amount: Math.round(p * tr.edu / 100)},
-    {key:'rural',  label:'농어촌특별세',  note: tr.rural ? tr.rural + '%' : '85㎡ 이하 비과세', amount: Math.round(p * tr.rural / 100)},
-    {key:'broker', label:'중개보수',      note: '상한요율', amount: brokerageFee(p)},
-    {key:'bond',   label:'국민주택채권 할인비용', note: '할인율 ' + R.bondDiscount + '%', amount: bondCost(p, ratio, R.bondDiscount)},
-    {key:'stamp',  label:'인지세',        note: '', amount: stampDuty(p)},
-    {key:'legal',  label:'법무사 보수',   note: '기본보수 추정', amount: legalFee(p)},
-    {key:'regfee', label:'등기신청수수료', note: '', amount: R.regFee}
+  const items = [ // 산출 금액은 만원 미만 절사
+    {key:'acq',    label:'취득세',        note: pct(tr.acq),  amount: manFloor(p * tr.acq / 100)},
+    {key:'edu',    label:'지방교육세',    note: pct(tr.edu),  amount: manFloor(p * tr.edu / 100)},
+    {key:'rural',  label:'농어촌특별세',  note: tr.rural ? tr.rural + '%' : '85㎡ 이하 비과세', amount: manFloor(p * tr.rural / 100)},
+    {key:'broker', label:'중개보수',      note: '상한요율', amount: manFloor(brokerageFee(p))},
+    {key:'bond',   label:'국민주택채권 할인비용', note: '할인율 ' + R.bondDiscount + '%', amount: manFloor(bondCost(p, ratio, R.bondDiscount))},
+    {key:'stamp',  label:'인지세',        note: '', amount: manFloor(stampDuty(p))},
+    {key:'legal',  label:'법무사 보수',   note: '기본보수 추정', amount: manFloor(legalFee(p))},
+    {key:'regfee', label:'등기신청수수료', note: '', amount: manFloor(R.regFee)}
   ];
   return items;
 }
@@ -641,8 +641,8 @@ function capitalGainsTax(o, R){
       if(base <= limit){ tax = base*rate/100 - ded; out.rateLabel = '기본 누진세율 ' + rate + '%'; break; }
     }
   }
-  out.tax = Math.max(0, Math.round(tax));
-  out.localTax = Math.round(out.tax * R.localSurtax/100);
+  out.tax = manFloor(Math.max(0, tax)); // 만원 미만 절사
+  out.localTax = manFloor(out.tax * R.localSurtax/100);
   out.total = out.tax + out.localTax;
   return out;
 }
@@ -697,7 +697,7 @@ function buildTimeline(state, opts){
   if(sellOn){
     const holdMonths = Math.max(0, saleIdx - acqIdx);
     const liveMonths = S.lived ? (+S.liveMonths||0) : 0;
-    const saleBroker = S.costOverrides && S.costOverrides.broker != null ? S.costOverrides.broker : brokerageFee(S.price);
+    const saleBroker = S.costOverrides && S.costOverrides.broker != null ? S.costOverrides.broker : manFloor(brokerageFee(S.price));
     // 매도 시점 대출 잔액(그 달 정기상환 없이 중도상환)과 수수료
     let payoff = 0;
     for(const L of loans){
@@ -705,13 +705,13 @@ function buildTimeline(state, opts){
       const paidCount = saleIdx - L.start - 1;
       payoff += loanBalanceAt(L.sched, L.principal, paidCount);
     }
-    const prepay = S.costOverrides && S.costOverrides.prepay != null ? S.costOverrides.prepay : Math.round(payoff * R.prepayFee/100);
+    const prepay = S.costOverrides && S.costOverrides.prepay != null ? S.costOverrides.prepay : manFloor(payoff * R.prepayFee/100);
     const extras = (S.extraCosts||[]).reduce((s,e) => s + (+e.amount||0), 0);
     const expenses = costTotal + saleBroker; // 필요경비: 취득 부대비용 + 매도 중개보수
     const cgt = capitalGainsTax({sellPrice:+S.price, buyPrice:+B.price, expenses,
       holdMonths, liveMonths, houses:B.houses, adjustedAtBuy:B.adjusted}, R);
     sale = {idx:saleIdx, holdMonths, liveMonths, broker:saleBroker, payoff, prepay, extras, cgt,
-      brokerAuto: brokerageFee(S.price), prepayAuto: Math.round(payoff * R.prepayFee/100)};
+      brokerAuto: manFloor(brokerageFee(S.price)), prepayAuto: manFloor(payoff * R.prepayFee/100)};
   }
 
   const months = Math.max(1, opts.months|0);
@@ -791,7 +791,19 @@ function buildTimeline(state, opts){
 }
 
 // ---------- 숫자 표기 ----------
-function fmtWon(n){ return Math.round(n).toLocaleString('ko-KR') + '원'; }
+function manFloor(n){ return Math.trunc((+n||0) / 10000) * 10000; } // 만원 미만 절사
+function fmtKR(n){ // 만원 절사 후 "3억 2,500만원" 표기
+  const man = Math.trunc(Math.round(+n||0) / 10000);
+  if(man === 0) return '0원';
+  const sign = man < 0 ? '-' : '';
+  const a = Math.abs(man);
+  const eok = Math.floor(a / 10000), rest = a % 10000;
+  let s = '';
+  if(eok) s += eok.toLocaleString('ko-KR') + '억';
+  if(rest) s += (eok ? ' ' : '') + rest.toLocaleString('ko-KR') + '만';
+  return sign + s + '원';
+}
+function fmtWon(n){ return fmtKR(n); }
 function fmtManwon(n){ // 3.2억 / 2,500만 축약
   const v = Math.round(n), a = Math.abs(v);
   if(a >= 100000000){
@@ -929,15 +941,17 @@ function makeMonthField(get, set){
   wrap.append(ys, ms);
   return wrap;
 }
-function parseMoney(str){ return +String(str).replace(/[^\d\-]/g,'') || 0; }
+// 금액 입력은 전부 만원 단위 (상태에는 원 단위로 저장)
+function parseMoney(str){ return (+String(str).replace(/[^\d\-]/g,'') || 0) * 10000; }
 function fmtComma(n){ return n ? (+n).toLocaleString('ko-KR') : ''; }
+function wonToManStr(won){ return fmtComma(Math.trunc((+won||0) / 10000)); }
 function attachMoney(input, get, set){
-  input.value = fmtComma(get());
+  input.value = wonToManStr(get());
   input.addEventListener('input', () => {
     const digits = input.value.replace(/[^\d\-]/g,'');
     if(digits === '' || digits === '-'){ set(0); onChange(); return; } // 음수 입력 도중('-')은 그대로 둠
     const caretFromEnd = input.value.length - (input.selectionStart||0);
-    set(+digits || 0);
+    set((+digits || 0) * 10000);
     input.value = fmtComma(+digits||0);
     const pos = Math.max(0, input.value.length - caretFromEnd);
     input.setSelectionRange(pos, pos);
@@ -949,19 +963,19 @@ function attachMoney(input, get, set){
 //  입력 테이블 (행 추가/삭제)
 // ============================================================
 const TABLE_DEFS = {
-  holdings:  {path: () => state.flow.holdings,  cols:[{k:'cat',ph:'구분'},{k:'desc',ph:'내용'},{k:'amount',money:true,ph:'금액'}], blank:{cat:'',desc:'',amount:0}},
-  monthly:   {path: () => state.flow.monthly,   cols:[{k:'cat',ph:'구분'},{k:'desc',ph:'내용'},{k:'amount',money:true,ph:'금액'}], blank:{cat:'',desc:'',amount:0}},
-  inflows:   {path: () => state.flow.inflows,   cols:[{k:'month',month:true},{k:'desc',ph:'내용'},{k:'amount',money:true,ph:'금액'}], blank:{month:'',desc:'',amount:0}},
-  outflows:  {path: () => state.flow.outflows,  cols:[{k:'month',month:true},{k:'desc',ph:'내용'},{k:'amount',money:true,ph:'금액'}], blank:{month:'',desc:'',amount:0}},
-  payments:  {path: () => state.buy.payments,   cols:[{k:'month',month:true},{k:'desc',ph:'내용'},{k:'cash',money:true,ph:'현금'},{k:'loan',money:true,ph:'대출금액'}], blank:{month:'',desc:'',cash:0,loan:0}},
-  extraCosts:{path: () => state.buy.extraCosts, cols:[{k:'desc',ph:'항목명'},{k:'amount',money:true,ph:'금액'}], blank:{desc:'',amount:0}},
-  sellExtras:{path: () => state.sell.extraCosts,cols:[{k:'desc',ph:'항목명'},{k:'amount',money:true,ph:'금액'}], blank:{desc:'',amount:0}}
+  holdings:  {path: () => state.flow.holdings,  cols:[{k:'cat',ph:'구분'},{k:'desc',ph:'내용'},{k:'amount',money:true,ph:'만원'}], blank:{cat:'',desc:'',amount:0}},
+  monthly:   {path: () => state.flow.monthly,   cols:[{k:'cat',ph:'구분'},{k:'desc',ph:'내용'},{k:'amount',money:true,ph:'만원'}], blank:{cat:'',desc:'',amount:0}},
+  inflows:   {path: () => state.flow.inflows,   cols:[{k:'month',month:true},{k:'desc',ph:'내용'},{k:'amount',money:true,ph:'만원'}], blank:{month:'',desc:'',amount:0}},
+  outflows:  {path: () => state.flow.outflows,  cols:[{k:'month',month:true},{k:'desc',ph:'내용'},{k:'amount',money:true,ph:'만원'}], blank:{month:'',desc:'',amount:0}},
+  payments:  {path: () => state.buy.payments,   cols:[{k:'month',month:true},{k:'desc',ph:'내용'},{k:'cash',money:true,ph:'만원'},{k:'loan',money:true,ph:'만원'}], blank:{month:'',desc:'',cash:0,loan:0}},
+  extraCosts:{path: () => state.buy.extraCosts, cols:[{k:'desc',ph:'항목명'},{k:'amount',money:true,ph:'만원'}], blank:{desc:'',amount:0}},
+  sellExtras:{path: () => state.sell.extraCosts,cols:[{k:'desc',ph:'항목명'},{k:'amount',money:true,ph:'만원'}], blank:{desc:'',amount:0}}
 };
 const TABLE_HEADS = {
-  holdings:['구분','내용','금액',''], monthly:['구분','내용','금액',''],
-  inflows:['날짜','내용','금액',''], outflows:['날짜','내용','금액',''],
-  payments:['날짜','내용','현금','대출금액',''],
-  extraCosts:['항목','금액',''], sellExtras:['항목','금액','']
+  holdings:['구분','내용','금액(만원)',''], monthly:['구분','내용','금액(만원)',''],
+  inflows:['날짜','내용','금액(만원)',''], outflows:['날짜','내용','금액(만원)',''],
+  payments:['날짜','내용','현금(만원)','대출(만원)',''],
+  extraCosts:['항목','금액(만원)',''], sellExtras:['항목','금액(만원)','']
 };
 function renderInputTable(name){
   const def = TABLE_DEFS[name], rows = def.path();
@@ -1186,11 +1200,11 @@ function renderCostTable(){
     tr.append(el('td', null, el('div', null, it.label), el('div', {class:'auto-note'}, it.overridden ? '수정됨 (자동: ' + fmtManwon(it.autoAmount) + ')' : (it.note || '자동'))));
     const td = el('td', {class:'amt'});
     const inp = el('input', {class:'money', inputmode:'numeric'});
-    inp.value = fmtComma(it.amount);
+    inp.value = wonToManStr(it.amount);
     inp.addEventListener('input', () => {
       const v = parseMoney(inp.value);
       state.buy.costOverrides[it.key] = v;
-      inp.value = fmtComma(v);
+      inp.value = wonToManStr(v);
       onChange(true); // 코스트 테이블 자체는 다시 안 그림 (포커스 유지)
     });
     td.append(inp); tr.append(td);
@@ -1220,10 +1234,10 @@ function renderSellCostTable(tl){
     tr.append(el('td', null, el('div', null, it.label), el('div', {class:'auto-note'}, ovd ? '수정됨 (자동: ' + fmtManwon(it.auto) + ')' : it.note)));
     const td = el('td', {class:'amt'});
     const inp = el('input', {class:'money', inputmode:'numeric'});
-    inp.value = fmtComma(it.amount);
+    inp.value = wonToManStr(it.amount);
     inp.addEventListener('input', () => {
       S.costOverrides[it.key] = parseMoney(inp.value);
-      inp.value = fmtComma(S.costOverrides[it.key]);
+      inp.value = wonToManStr(S.costOverrides[it.key]);
       onChange(true);
     });
     td.append(inp); tr.append(td);
@@ -1247,8 +1261,8 @@ function bindRates(){
   $$('[data-rate]').forEach(inp => {
     const key = inp.dataset.rate;
     if(inp.classList.contains('money')){
-      inp.value = fmtComma(state.rates[key]);
-      inp.addEventListener('input', () => { state.rates[key] = parseMoney(inp.value); inp.value = fmtComma(state.rates[key]); onChange(true); });
+      inp.value = wonToManStr(state.rates[key]);
+      inp.addEventListener('input', () => { state.rates[key] = parseMoney(inp.value); inp.value = wonToManStr(state.rates[key]); onChange(true); });
     } else {
       inp.value = state.rates[key];
       inp.addEventListener('input', () => { state.rates[key] = +inp.value || 0; onChange(true); });
@@ -1263,7 +1277,7 @@ function bindRates(){
 function syncRateInputs(){
   $$('[data-rate]').forEach(inp => {
     const key = inp.dataset.rate;
-    inp.value = inp.classList.contains('money') ? fmtComma(state.rates[key]) : state.rates[key];
+    inp.value = inp.classList.contains('money') ? wonToManStr(state.rates[key]) : state.rates[key];
   });
 }
 function renderBrackets(){
@@ -1275,8 +1289,8 @@ function renderBrackets(){
     if(b[0] === Infinity){ tdL.append(el('span', {style:'font-size:.78rem;color:var(--ink-3);padding-left:6px'}, '초과분')); }
     else {
       const inp = el('input', {class:'money', inputmode:'numeric'});
-      inp.value = fmtComma(b[0]);
-      inp.addEventListener('input', () => { b[0] = parseMoney(inp.value); inp.value = fmtComma(b[0]); onChange(true); });
+      inp.value = wonToManStr(b[0]);
+      inp.addEventListener('input', () => { b[0] = parseMoney(inp.value); inp.value = wonToManStr(b[0]); onChange(true); });
       tdL.append(inp);
     }
     tr.append(tdL);
@@ -1285,8 +1299,8 @@ function renderBrackets(){
     rInp.addEventListener('input', () => { b[1] = +rInp.value || 0; onChange(true); });
     tdR.append(rInp); tr.append(tdR);
     const tdD = el('td'); const dInp = el('input', {class:'money', inputmode:'numeric'});
-    dInp.value = fmtComma(b[2]);
-    dInp.addEventListener('input', () => { b[2] = parseMoney(dInp.value); dInp.value = fmtComma(b[2]); onChange(true); });
+    dInp.value = wonToManStr(b[2]);
+    dInp.addEventListener('input', () => { b[2] = parseMoney(dInp.value); dInp.value = wonToManStr(b[2]); onChange(true); });
     tdD.append(dInp); tr.append(tdD);
     tb.append(tr);
   });
@@ -1421,12 +1435,12 @@ function renderProfit(tl){
   const good = r.profit >= 0;
   grid.append(el('div', {class:'tile hero'},
     el('div', {class:'l'}, '매도 시점 실현 손익'),
-    el('div', {class:'v ' + (good ? 'good' : 'bad')}, (good ? '+' : '−') + koreanWon(Math.abs(r.profit))),
+    el('div', {class:'v ' + (good ? 'good' : 'bad')}, (good ? '+' : '−') + fmtKR(Math.abs(r.profit))),
     el('div', {class:'s'}, r.roi != null ? '투입 현금 대비 ' + (r.roi*100).toFixed(1) + '%' : '')));
-  grid.append(el('div', {class:'tile'}, el('div', {class:'l'}, '투입 현금 (매수+부대비용−보증금)'), el('div', {class:'v'}, fmtManwon(r.invested) + '원')));
-  grid.append(el('div', {class:'tile'}, el('div', {class:'l'}, '매도 순수령액'), el('div', {class:'v'}, fmtManwon(r.saleNet) + '원')));
-  grid.append(el('div', {class:'tile'}, el('div', {class:'l'}, '납부 이자 누계'), el('div', {class:'v'}, fmtManwon(r.interestPaid) + '원')));
-  grid.append(el('div', {class:'tile'}, el('div', {class:'l'}, '상환 원금 누계'), el('div', {class:'v'}, fmtManwon(r.principalPaid) + '원')));
+  grid.append(el('div', {class:'tile'}, el('div', {class:'l'}, '투입 현금 (매수+부대비용−보증금)'), el('div', {class:'v'}, fmtKR(r.invested))));
+  grid.append(el('div', {class:'tile'}, el('div', {class:'l'}, '매도 순수령액'), el('div', {class:'v'}, fmtKR(r.saleNet))));
+  grid.append(el('div', {class:'tile'}, el('div', {class:'l'}, '납부 이자 누계'), el('div', {class:'v'}, fmtKR(r.interestPaid))));
+  grid.append(el('div', {class:'tile'}, el('div', {class:'l'}, '상환 원금 누계'), el('div', {class:'v'}, fmtKR(r.principalPaid))));
   const li = (a,b,cls) => bd.append(el('li', {class:cls||''}, el('span', null, a), el('span', null, b)));
   li('매도 금액', '+' + fmtWon(+state.sell.price));
   if(tl.sale.payoff) li('대출 잔액 상환', '−' + fmtWon(tl.sale.payoff));
@@ -1547,12 +1561,12 @@ function initInputs(){
     }
     onChange();
   });
-  const bp = $('#buyPrice'); bp.value = fmtComma(state.buy.price);
+  const bp = $('#buyPrice');
   attachMoney(bp, () => state.buy.price, v => state.buy.price = v);
   $('#buyTenant').checked = state.buy.tenant;
   $('#buyTenant').onchange = e => { state.buy.tenant = e.target.checked; $('#depositRow').style.display = e.target.checked ? '' : 'none'; $('#depositModeRow').style.display = e.target.checked ? '' : 'none'; onChange(); };
   $('#depositRow').style.display = state.buy.tenant ? '' : 'none';
-  const bd = $('#buyDeposit'); bd.value = fmtComma(state.buy.deposit);
+  const bd = $('#buyDeposit');
   attachMoney(bd, () => state.buy.deposit, v => state.buy.deposit = v);
 
   $('#loanRate').value = state.buy.loan.rate;
@@ -1565,7 +1579,7 @@ function initInputs(){
   $('#buyMonths').oninput = e => { state.buy.viewMonths = +e.target.value || 36; onChange(); };
 
   mountMonth('sellMonth', () => state.sell.month, v => { state.sell.month = v; onChange(); });
-  const sp = $('#sellPrice'); sp.value = fmtComma(state.sell.price);
+  const sp = $('#sellPrice');
   attachMoney(sp, () => state.sell.price, v => state.sell.price = v);
   $('#sellLived').checked = state.sell.lived;
   $('#sellLived').onchange = e => { state.sell.lived = e.target.checked; $('#liveMonthsRow').style.display = e.target.checked ? '' : 'none'; onChange(); };
