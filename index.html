@@ -84,6 +84,13 @@ table.inp td{padding:3px 2px; vertical-align:middle}
 #tbl-payments td:nth-child(2) input{min-width:44px; padding:6px 4px}
 #tbl-payments td:nth-child(3), #tbl-payments td:nth-child(4){min-width:86px}
 #tbl-payments input.money{padding:6px 5px}
+#tbl-borrowings{display:block; overflow-x:auto; -webkit-overflow-scrolling:touch}
+#tbl-borrowings input[type=number]{min-width:54px; padding:6px 3px}
+#tbl-borrowings input.money{min-width:76px; padding:6px 5px}
+#tbl-borrowings td:nth-child(2) input{min-width:52px; padding:6px 4px}
+#tbl-borrowings input[type=month], #tbl-borrowings .mfield{min-width:112px}
+#tbl-gifts select{padding:6px 3px}
+#tbl-rateChanges input[type=number]{min-width:80px}
 table.inp input, select, input[type=month], input[type=number]{
   width:100%; border:1px solid var(--border); background:var(--page); color:var(--ink-1);
   border-radius:7px; padding:6px 8px; font-size:.85rem; font-family:inherit;
@@ -244,10 +251,40 @@ table.cost tr.overridden .auto-note{color:var(--accent)}
       <button class="btn small addrow" data-add="outflows">＋ 항목 추가</button>
     </div>
     <div class="card">
+      <h2>증여받는 자금 <span class="hint">증여세 자동 계산</span></h2>
+      <p class="desc">증여받는 달에 유입되고, 증여세(관계별 10년 합산 공제 + 신고세액공제 반영)가 같은 달 유출로 잡힙니다.</p>
+      <table class="inp" id="tbl-gifts"></table>
+      <button class="btn small addrow" data-add="gifts">＋ 증여 추가</button>
+      <ul class="bd" id="giftInfo"></ul>
+    </div>
+    <div class="card">
+      <h2>개인 간 차용 <span class="hint">가족·지인에게 빌리는 돈</span></h2>
+      <p class="desc">빌린 달에 유입, 다음 달부터 매월 이자 유출, 지정한 개월 후 원금 상환. 상환을 0으로 두면 조회 기간 내내 이자만 나갑니다.</p>
+      <table class="inp" id="tbl-borrowings"></table>
+      <button class="btn small addrow" data-add="borrowings">＋ 차용 추가</button>
+      <div id="borrowInfo"></div>
+    </div>
+
+    <details class="settings">
+      <summary>⚙️ 증여·차용 설정 (기본값 수정)</summary>
+      <div class="body">
+        <div class="rategrid">
+          <div class="fld"><label>배우자 공제 (만원)</label><input class="money" inputmode="numeric" data-rate="giftDeductSpouse"></div>
+          <div class="fld"><label>직계존속 공제 (만원)</label><input class="money" inputmode="numeric" data-rate="giftDeductParent"></div>
+          <div class="fld"><label>기타 친족 공제 (만원)</label><input class="money" inputmode="numeric" data-rate="giftDeductRelative"></div>
+          <div class="fld"><label>신고세액공제 (%)</label><input type="number" step="0.5" data-rate="giftReportCredit"></div>
+          <div class="fld"><label>차용 적정이자율 (연 %)</label><input type="number" step="0.1" data-rate="fairRate"></div>
+        </div>
+        <p class="note">증여세율: 1억 이하 10% · 5억 이하 20% · 10억 이하 30% · 30억 이하 40% · 초과 50% (누진공제 자동 적용). 가족 간 무이자·저리 차용은 적정이자율(당좌대출이자율 4.6%)로 계산한 이자와의 차액이 <b>연 1,000만원을 넘으면</b> 그 이익이 증여로 과세될 수 있습니다. 차용은 차용증 작성·이자 이체 기록을 남기는 것이 안전합니다.</p>
+      </div>
+    </details>
+
+    <div class="card">
       <h2>계산 설정</h2>
       <div class="fgrid">
         <div class="fld"><label>시작 월</label><input type="month" id="flowStart"></div>
         <div class="fld"><label>조회 기간 (개월)</label><input type="number" id="flowMonths" min="1" max="360" step="1"></div>
+        <div class="fld"><label>현금 보유 이자율 (연 %, 세후)</label><input type="number" id="cashRate" min="0" step="0.1"></div>
       </div>
     </div>
     <div class="card">
@@ -314,6 +351,12 @@ table.cost tr.overridden .auto-note{color:var(--accent)}
         <div class="fld"><label>대출 기간 (년)</label><input type="number" id="loanYears" step="1" min="1"></div>
         <div class="fld"><label>거치 기간 (개월)</label><input type="number" id="loanGrace" step="1" min="0"></div>
         <div class="fld"><label>첫 달 예상 상환액</label><div style="padding:7px 0;font-weight:700;font-variant-numeric:tabular-nums" id="loanFirstPay">—</div></div>
+        <div class="fld full">
+          <label>금리 변동 일정 (변동금리, 선택)</label>
+          <table class="inp" id="tbl-rateChanges"></table>
+          <button class="btn small addrow" data-add="rateChanges">＋ 금리 변경 추가</button>
+          <div class="won" style="text-align:left;color:var(--ink-3)">변경 월부터 새 금리 적용 — 원리금균등은 잔여 기간 기준으로 월 상환액을 다시 계산합니다</div>
+        </div>
       </div>
     </div>
 
@@ -438,6 +481,18 @@ const DEFAULT_RATES = {
   stdRatioVilla: 60,     // 빌라·연립
   bondDiscount: 10,      // 국민주택채권 즉시매도 할인율 (%)
   regFee: 15000,         // 등기신청수수료
+  giftDeductSpouse: 600000000,  // 증여재산공제: 배우자 (10년 합산)
+  giftDeductParent: 50000000,   // 직계존속 (성인 수증자)
+  giftDeductRelative: 10000000, // 기타 친족
+  giftReportCredit: 3,          // 증여세 자진신고 세액공제 (%)
+  fairRate: 4.6,                // 개인 간 차용 적정이자율 (당좌대출이자율, %)
+  giftBrackets: [               // 증여세율: [과세표준 상한, 세율%, 누진공제]
+    [100000000, 10, 0],
+    [500000000, 20, 10000000],
+    [1000000000, 30, 60000000],
+    [3000000000, 40, 160000000],
+    [Infinity, 50, 460000000]
+  ],
   cgtShort1: 70,         // 보유 1년 미만 양도세율 (%)
   cgtShort2: 60,         // 보유 1~2년 (%)
   localSurtax: 10,       // 지방소득세 = 양도세 × %
@@ -485,45 +540,61 @@ const BOND_TABLE = [
 ];
 
 // ---------- 대출 상환 스케줄 ----------
-// {principal, annualRate(%), years, graceMonths, type:'annuity'|'equal_principal'|'bullet'}
+// {principal, annualRate(%), years, graceMonths, type:'annuity'|'equal_principal'|'bullet',
+//  rateChanges:[{k, rate}]}  ← 변동금리: k회차부터 연 rate% 적용
 // → [{k, interest, principal, balance}] (k=대출 실행 다음 달부터 1,2,3…)
 function loanSchedule(o){
   const P = +o.principal || 0;
   if(P <= 0) return [];
-  const i = (+o.annualRate || 0) / 100 / 12;
   const N = Math.max(1, Math.round((+o.years || 1) * 12));
   const g = Math.min(Math.max(0, Math.round(+o.graceMonths || 0)), N - 1);
-  const M = N - g;
+  const changeAt = {};
+  for(const c of (o.rateChanges || [])){
+    const k = Math.round(+c.k);
+    if(k >= 1 && k <= N && c.rate != null && c.rate !== '') changeAt[k] = +c.rate;
+  }
+  let rate = +o.annualRate || 0;
+  let bal = P, A = null; // A: 원리금균등 월 상환액 (금리 변경·거치 종료 시 잔여기간 기준 재산정)
   const rows = [];
-  let bal = P;
-  if(o.type === 'bullet'){
-    for(let k=1; k<=N; k++){
-      const pr = (k === N) ? bal : 0;
-      rows.push({k, interest: bal*i, principal: pr, balance: bal - pr});
-      bal -= pr;
-    }
-    return rows;
-  }
-  if(o.type === 'equal_principal'){
-    const mp = P / M;
-    for(let k=1; k<=N; k++){
-      const pr = k <= g ? 0 : Math.min(mp, bal);
-      rows.push({k, interest: bal*i, principal: pr, balance: bal - pr});
-      bal -= pr;
-    }
-    return rows;
-  }
-  // 원리금균등
-  const A = i === 0 ? P/M : P * i / (1 - Math.pow(1+i, -M));
   for(let k=1; k<=N; k++){
+    if(changeAt[k] != null){ rate = changeAt[k]; A = null; }
+    const i = rate / 100 / 12;
     const int = bal * i;
-    let pr = k <= g ? 0 : Math.min(A - int, bal);
-    if(k === N) pr = bal;
+    let pr = 0;
+    if(o.type === 'bullet'){
+      pr = (k === N) ? bal : 0;
+    } else if(o.type === 'equal_principal'){
+      pr = k <= g ? 0 : Math.min(P / (N - g), bal);
+    } else { // 원리금균등
+      if(k > g){
+        if(A === null){
+          const rem = N - k + 1;
+          A = i === 0 ? bal / rem : bal * i / (1 - Math.pow(1+i, -rem));
+        }
+        pr = Math.min(Math.max(0, A - int), bal);
+        if(k === N) pr = bal;
+      }
+    }
     rows.push({k, interest: int, principal: pr, balance: bal - pr});
     bal -= pr;
   }
   return rows;
 }
+
+// ---------- 증여세 (10년 합산 기준 누적 금액에 대해 계산) ----------
+function giftTax(amount, rel, R){
+  const ded = rel === 'spouse' ? R.giftDeductSpouse
+            : rel === 'parent' ? R.giftDeductParent
+            : rel === 'relative' ? R.giftDeductRelative : 0;
+  const taxable = Math.max(0, (+amount || 0) - ded);
+  let tax = 0;
+  for(const [limit, rate, dc] of R.giftBrackets){
+    if(taxable <= limit){ tax = taxable * rate / 100 - dc; break; }
+  }
+  tax = Math.max(0, tax) * (1 - (R.giftReportCredit || 0) / 100); // 자진신고 세액공제
+  return {deduction: ded, taxable, tax: manFloor(tax)};
+}
+const GIFT_REL_LABEL = {spouse:'배우자', parent:'부모·직계존속', relative:'기타 친족', other:'타인'};
 function loanBalanceAt(sched, principal, k){ // k회차 납부 후 잔액
   if(k <= 0) return principal;
   if(k >= sched.length) return 0;
@@ -677,17 +748,39 @@ function buildTimeline(state, opts){
   const sellOn = opts.includeSell && buyOn && S.month && (+S.price||0) > 0 && acqIdx != null;
   const saleIdx = sellOn ? ymToIdx(S.month) : null;
 
-  // 대출들
+  // 대출들 (변동금리: 변경 월 → 각 대출의 회차 k로 변환)
   const loans = [];
   if(buyOn){
     for(const p of payRows){
       const amt = +p.loan||0;
       if(amt > 0){
-        loans.push({start: ymToIdx(p.month), principal: amt,
-          sched: loanSchedule({principal: amt, annualRate: B.loan.rate, years: B.loan.years, graceMonths: B.loan.grace, type: B.loan.type})});
+        const s0 = ymToIdx(p.month);
+        const rcs = (B.loan.rateChanges||[])
+          .filter(r => r.month && r.rate != null && r.rate !== '')
+          .map(r => ({k: ymToIdx(r.month) - s0, rate: +r.rate}))
+          .filter(r => r.k >= 1);
+        loans.push({start: s0, principal: amt,
+          sched: loanSchedule({principal: amt, annualRate: B.loan.rate, years: B.loan.years, graceMonths: B.loan.grace, type: B.loan.type, rateChanges: rcs})});
       }
     }
   }
+
+  // 증여 계획: 관계별 10년 합산 누적으로 증여세 산출, 그 달에 추가 납부분만 유출
+  const giftPlan = [];
+  {
+    const gs = (F.gifts||[]).filter(g => g.month && +g.amount > 0)
+      .slice().sort((a,b) => ymToIdx(a.month) - ymToIdx(b.month));
+    const cum = {}, paid = {};
+    for(const g of gs){
+      const rel = g.rel || 'other';
+      cum[rel] = (cum[rel]||0) + (+g.amount);
+      const t = giftTax(cum[rel], rel, R).tax;
+      const due = Math.max(0, t - (paid[rel]||0));
+      paid[rel] = t;
+      giftPlan.push({idx: ymToIdx(g.month), amt: +g.amount, rel, tax: due});
+    }
+  }
+  const borrows = (F.borrowings||[]).filter(b => b.month && +b.amount > 0);
   const costs = buyOn ? resolvedCosts(B, R) : [];
   const costTotal = costs.reduce((s,c) => s+c.amount, 0);
   const deposit = (buyOn && B.tenant) ? (+B.deposit||0) : 0;
@@ -724,10 +817,33 @@ function buildTimeline(state, opts){
       const h = (F.holdings||[]).reduce((s,r) => s + (+r.amount||0), 0);
       if(h) ev.push({label:'보유 현금', amt:h});
     }
+    // 현금 보유 이자 (전월 말 잔액이 양수일 때, 세후 연이율)
+    if(t > 0 && (+F.cashRate||0) > 0 && bal > 0){
+      const ci = manFloor(bal * (+F.cashRate) / 1200);
+      if(ci) ev.push({label:'현금 이자', amt:ci});
+    }
     const mo = (F.monthly||[]).reduce((s,r) => s + (+r.amount||0), 0);
     if(mo) ev.push({label:'매월 반복', amt:mo});
     for(const r of (F.inflows||[])) if(r.month && ymToIdx(r.month) === idx && +r.amount) ev.push({label:r.desc||'유입', amt:+r.amount});
     for(const r of (F.outflows||[])) if(r.month && ymToIdx(r.month) === idx && +r.amount) ev.push({label:r.desc||'유출', amt:-(+r.amount)});
+    // 증여: 유입 + 증여세 유출
+    for(const g of giftPlan){
+      if(g.idx === idx){
+        ev.push({label:'증여 (' + GIFT_REL_LABEL[g.rel] + ')', amt:g.amt});
+        if(g.tax) ev.push({label:'증여세 (' + GIFT_REL_LABEL[g.rel] + ')', amt:-g.tax});
+      }
+    }
+    // 개인 간 차용: 유입 → 매월 이자 → 만기 원금 상환 (상환 0이면 이자만 계속)
+    for(const b of borrows){
+      const k = idx - ymToIdx(b.month);
+      const m = Math.max(0, Math.round(+b.months||0));
+      if(k === 0) ev.push({label:'차용' + (b.desc ? ': ' + b.desc : ''), amt:+b.amount});
+      if(k >= 1 && (m === 0 || k <= m)){
+        const int = manFloor((+b.amount) * (+b.rate||0) / 1200);
+        if(int) ev.push({label:'차용 이자' + (b.desc ? ' (' + b.desc + ')' : ''), amt:-int});
+      }
+      if(m > 0 && k === m) ev.push({label:'차용 원금 상환' + (b.desc ? ' (' + b.desc + ')' : ''), amt:-(+b.amount)});
+    }
 
     if(buyOn && (saleIdx == null || idx <= saleIdx)){
       for(const p of payRows){
@@ -838,17 +954,18 @@ function defaultState(){
   const ym = nowYm();
   return {
     flow: {
-      startMonth: ym, months: 24,
+      startMonth: ym, months: 24, cashRate: 0,
       holdings: [{cat:'예금', desc:'', amount:0}],
       monthly: [{cat:'급여', desc:'', amount:0}],
-      inflows: [], outflows: []
+      inflows: [], outflows: [],
+      gifts: [], borrowings: []
     },
     buy: {
       type:'apt', over85:false, houses:1, adjusted:false,
       tenant:false, deposit:0,
       month:'', price:0,
       payments: [{month:'', desc:'계약금', cash:0, loan:0}],
-      loan: {type:'annuity', rate:4.0, years:30, grace:0},
+      loan: {type:'annuity', rate:4.0, years:30, grace:0, rateChanges:[]},
       costOverrides:{}, extraCosts:[],
       viewMonths: 36
     },
@@ -888,6 +1005,11 @@ function mergeState(loaded){ // 구버전 데이터에 기본값 보충
   s.rates = {...cloneRates(DEFAULT_RATES), ...(loaded.rates||{})};
   if(!Array.isArray(s.rates.brackets) || !s.rates.brackets.length) s.rates.brackets = cloneRates(DEFAULT_RATES).brackets;
   s.rates.brackets = s.rates.brackets.map(b => [b[0] == null ? Infinity : b[0], b[1], b[2]]);
+  if(!Array.isArray(s.rates.giftBrackets) || !s.rates.giftBrackets.length) s.rates.giftBrackets = cloneRates(DEFAULT_RATES).giftBrackets;
+  s.rates.giftBrackets = s.rates.giftBrackets.map(b => [b[0] == null ? Infinity : b[0], b[1], b[2]]);
+  if(!Array.isArray(s.flow.gifts)) s.flow.gifts = [];
+  if(!Array.isArray(s.flow.borrowings)) s.flow.borrowings = [];
+  if(!Array.isArray(s.buy.loan.rateChanges)) s.buy.loan.rateChanges = [];
   return s;
 }
 function getScenarios(){ try{ return deserialize(localStorage.getItem(LS_SCN) || '{}'); }catch(e){ return {}; } }
@@ -968,6 +1090,9 @@ const TABLE_DEFS = {
   inflows:   {path: () => state.flow.inflows,   cols:[{k:'month',month:true},{k:'desc',ph:'내용'},{k:'amount',money:true,ph:'만원'}], blank:{month:'',desc:'',amount:0}},
   outflows:  {path: () => state.flow.outflows,  cols:[{k:'month',month:true},{k:'desc',ph:'내용'},{k:'amount',money:true,ph:'만원'}], blank:{month:'',desc:'',amount:0}},
   payments:  {path: () => state.buy.payments,   cols:[{k:'month',month:true},{k:'desc',ph:'내용'},{k:'cash',money:true,ph:'만원'},{k:'loan',money:true,ph:'만원'}], blank:{month:'',desc:'',cash:0,loan:0}},
+  gifts:     {path: () => state.flow.gifts,     cols:[{k:'month',month:true},{k:'rel',select:[['parent','부모·직계존속'],['spouse','배우자'],['relative','기타 친족'],['other','타인']]},{k:'amount',money:true,ph:'만원'}], blank:{month:'',rel:'parent',amount:0}},
+  borrowings:{path: () => state.flow.borrowings,cols:[{k:'month',month:true},{k:'desc',ph:'누구'},{k:'amount',money:true,ph:'만원'},{k:'rate',num:true,step:0.1,ph:'연%'},{k:'months',num:true,step:1,ph:'개월'}], blank:{month:'',desc:'',amount:0,rate:0,months:0}},
+  rateChanges:{path: () => state.buy.loan.rateChanges, cols:[{k:'month',month:true},{k:'rate',num:true,step:0.1,ph:'새 연 금리 %'}], blank:{month:'',rate:4}},
   extraCosts:{path: () => state.buy.extraCosts, cols:[{k:'desc',ph:'항목명'},{k:'amount',money:true,ph:'만원'}], blank:{desc:'',amount:0}},
   sellExtras:{path: () => state.sell.extraCosts,cols:[{k:'desc',ph:'항목명'},{k:'amount',money:true,ph:'만원'}], blank:{desc:'',amount:0}}
 };
@@ -975,6 +1100,9 @@ const TABLE_HEADS = {
   holdings:['구분','내용','금액(만원)',''], monthly:['구분','내용','금액(만원)',''],
   inflows:['날짜','내용','금액(만원)',''], outflows:['날짜','내용','금액(만원)',''],
   payments:['날짜','내용','현금(만원)','대출(만원)',''],
+  gifts:['날짜','증여자','금액(만원)',''],
+  borrowings:['날짜','누구','금액(만원)','연이자%','상환(개월)',''],
+  rateChanges:['변경 월','새 연 금리 (%)',''],
   extraCosts:['항목','금액(만원)',''], sellExtras:['항목','금액(만원)','']
 };
 function renderInputTable(name){
@@ -995,6 +1123,15 @@ function renderInputTable(name){
         attachMoney(inp, () => row[c.k], v => row[c.k] = v);
       } else if(c.month){
         inp = makeMonthField(() => row[c.k], v => { row[c.k] = v; onChange(); });
+      } else if(c.select){
+        inp = el('select');
+        for(const [v,l] of c.select) inp.append(el('option', {value:v}, l));
+        inp.value = row[c.k] || c.select[0][0];
+        inp.addEventListener('change', () => { row[c.k] = inp.value; onChange(); });
+      } else if(c.num){
+        inp = el('input', {type:'number', step:String(c.step||1), placeholder:c.ph||''});
+        inp.value = row[c.k] || '';
+        inp.addEventListener('input', () => { row[c.k] = +inp.value || 0; onChange(); });
       } else {
         inp = el('input', {type:'text', placeholder:c.ph||''});
         inp.value = row[c.k] || '';
@@ -1360,6 +1497,9 @@ function recalc(skipInputRerender){
   const costItems = state.buy.price > 0 ? resolvedCosts(state.buy, state.rates) : [];
   $('#sum-costs').textContent = fmtWon(costItems.reduce((s,c) => s+c.amount, 0));
 
+  renderGiftInfo();
+  renderBorrowInfo();
+
   // --- 탭1 ---
   const tl1 = buildTimeline(state, {includeBuy:false, includeSell:false, months:+state.flow.months || 24});
   renderChart('#chart-flow', tl1.rows, {});
@@ -1398,6 +1538,40 @@ function recalc(skipInputRerender){
   renderChart('#chart-sell', tl3.rows, {withLoan:true});
   renderLegend('#legend-sell', tl3.rows.some(r => r.loanBal > 0));
   renderOutTable('#table-sell', tl3.rows, true);
+}
+function renderGiftInfo(){
+  const ul = $('#giftInfo');
+  ul.innerHTML = '';
+  const gs = (state.flow.gifts||[]).filter(g => g.month && +g.amount > 0);
+  if(!gs.length) return;
+  const cum = {};
+  for(const g of gs) cum[g.rel||'other'] = (cum[g.rel||'other']||0) + (+g.amount);
+  let total = 0;
+  for(const rel of Object.keys(cum)){
+    const r = giftTax(cum[rel], rel, state.rates);
+    total += r.tax;
+    ul.append(el('li', null,
+      el('span', null, GIFT_REL_LABEL[rel] + ' ' + fmtKR(cum[rel]) + ' (공제 ' + fmtKR(r.deduction) + ')'),
+      el('span', null, '증여세 ' + fmtKR(r.tax))));
+  }
+  ul.append(el('li', {class:'tot'}, el('span', null, '증여세 합계 (신고세액공제 ' + state.rates.giftReportCredit + '% 반영)'), el('span', null, fmtKR(total))));
+}
+function renderBorrowInfo(){
+  const dv = $('#borrowInfo');
+  dv.innerHTML = '';
+  const fair = +state.rates.fairRate || 0;
+  for(const b of (state.flow.borrowings||[])){
+    if(!(+b.amount > 0)) continue;
+    const gap = (+b.amount) * Math.max(0, fair - (+b.rate||0)) / 100; // 연간 이자 차액
+    const name = b.desc ? '「' + b.desc + '」 ' : '';
+    if(gap > 10000000){
+      dv.append(el('div', {class:'valid warn', style:'margin-top:6px'},
+        '⚠ ' + name + '무이자·저리 차용: 적정이자율(' + fair + '%) 대비 연 이자 차액 ' + fmtKR(gap) + ' — 1,000만원 초과라 이익분이 증여로 과세될 수 있어요'));
+    } else if(+b.amount > 0 && (+b.rate||0) < fair){
+      dv.append(el('div', {class:'valid ok', style:'margin-top:6px'},
+        '✓ ' + name + '적정이자율(' + fair + '%) 대비 연 이자 차액 ' + fmtKR(gap) + ' — 1,000만원 이하로 증여의제 기준 미만'));
+    }
+  }
 }
 function renderLegend(id, withLoan){
   const lg = $(id);
@@ -1544,6 +1718,8 @@ function initInputs(){
   mountMonth('flowStart', () => state.flow.startMonth, v => { if(v){ state.flow.startMonth = v; onChange(); } });
   $('#flowMonths').value = state.flow.months;
   $('#flowMonths').oninput = e => { state.flow.months = +e.target.value || 24; onChange(); };
+  $('#cashRate').value = state.flow.cashRate || 0;
+  $('#cashRate').oninput = e => { state.flow.cashRate = +e.target.value || 0; onChange(); };
 
   bindSeg('#segType', () => state.buy.type, v => state.buy.type = v);
   bindSeg('#segArea', () => state.buy.over85 ? 1 : 0, v => state.buy.over85 = v === '1');

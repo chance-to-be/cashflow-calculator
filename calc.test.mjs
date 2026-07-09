@@ -13,7 +13,7 @@ assert.ok(m, 'index.html에서 CALC_CORE 블록을 찾지 못함');
 
 const exports_ = ['ymToIdx','idxToYm','ymShort','DEFAULT_RATES','loanSchedule','loanBalanceAt',
   'acqTaxRates','brokerageFee','stampDuty','bondCost','legalFee','acquisitionCosts',
-  'capitalGainsTax','resolvedCosts','buildTimeline','fmtManwon','manFloor','fmtKR'];
+  'capitalGainsTax','resolvedCosts','buildTimeline','fmtManwon','manFloor','fmtKR','giftTax'];
 const dir = mkdtempSync(join(tmpdir(), 'cfc-'));
 const modPath = join(dir, 'core.mjs');
 writeFileSync(modPath, m[1] + '\nexport {' + exports_.join(',') + '};\n');
@@ -65,6 +65,40 @@ test('금리 0% 원리금균등 = 원금/개월수', () => {
   const s = C.loanSchedule({principal:1.2e8, annualRate:0, years:10, type:'annuity'});
   approx(s[0].principal, 1e6, 1);
   assert.equal(s[0].interest, 0);
+});
+
+test('변동금리: 5억/4%/30년, 13회차부터 6% → 상환액 재산정·만기 완제', () => {
+  const s = C.loanSchedule({principal:5e8, annualRate:4, years:30, type:'annuity', rateChanges:[{k:13, rate:6}]});
+  const p12 = s[11].interest + s[11].principal;   // 4% 구간
+  const p13 = s[12].interest + s[12].principal;   // 6% 적용 첫 달
+  approx(p12, 2387076, 5);
+  assert.ok(p13 > p12 + 500000, '금리 인상 후 상환액 증가: ' + Math.round(p13));
+  // 6%로 잔여 348개월 재산정한 이론값과 일치
+  const bal12 = s[11].balance, i = 0.06/12;
+  const A2 = bal12 * i / (1 - Math.pow(1+i, -348));
+  approx(p13, A2, 5);
+  approx(s[359].balance, 0, 1);
+});
+test('변동금리 만기일시: 금리 변경 후 이자만 변동', () => {
+  const s = C.loanSchedule({principal:1e8, annualRate:3, years:2, type:'bullet', rateChanges:[{k:7, rate:5}]});
+  approx(s[0].interest, 250000, 1);
+  approx(s[6].interest, Math.round(1e8*0.05/12), 2);
+  assert.equal(s[23].balance, 0);
+});
+
+console.log('\n[증여세]');
+test('부모 1.5억 증여 → 공제 5천만, 과세표준 1억, 세액 970만(신고공제 3%)', () => {
+  const r = C.giftTax(1.5e8, 'parent', C.DEFAULT_RATES);
+  assert.equal(r.deduction, 5e7);
+  assert.equal(r.taxable, 1e8);
+  assert.equal(r.tax, C.manFloor(1e7 * 0.97)); // 9,700,000
+});
+test('배우자 5억 증여 → 공제 6억 이내 비과세', () => {
+  assert.equal(C.giftTax(5e8, 'spouse', C.DEFAULT_RATES).tax, 0);
+});
+test('부모 3억 증여 → 과세표준 2.5억, 20% 구간 (누진공제 1천만)', () => {
+  const r = C.giftTax(3e8, 'parent', C.DEFAULT_RATES);
+  assert.equal(r.tax, C.manFloor((2.5e8*0.2 - 1e7) * 0.97)); // 38,800,000
 });
 
 console.log('\n[취득세]');
@@ -183,11 +217,12 @@ console.log('\n[통합 타임라인]');
 function baseState(){
   return {
     flow: {
-      startMonth:'2026-07', months:24,
+      startMonth:'2026-07', months:24, cashRate:0,
       holdings:[{cat:'예금', desc:'', amount:3e8}],
       monthly:[{cat:'급여', desc:'', amount:5e6}],
       inflows:[{month:'2027-01', desc:'상여', amount:1e7}],
-      outflows:[{month:'2026-12', desc:'여행', amount:2e6}]
+      outflows:[{month:'2026-12', desc:'여행', amount:2e6}],
+      gifts:[], borrowings:[]
     },
     buy: {
       type:'apt', over85:false, houses:1, adjusted:false, tenant:false, deposit:0,
@@ -196,7 +231,7 @@ function baseState(){
         {month:'2028-06', desc:'선금', cash:2e8, loan:0},
         {month:'2028-10', desc:'잔금', cash:1e8, loan:5e8}
       ],
-      loan:{type:'annuity', rate:4, years:30, grace:0},
+      loan:{type:'annuity', rate:4, years:30, grace:0, rateChanges:[]},
       costOverrides:{}, extraCosts:[], viewMonths:40
     },
     sell: {month:'2031-10', price:10e8, lived:false, liveMonths:0, depositMode:'assume', costOverrides:{}, extraCosts:[]},
@@ -274,6 +309,44 @@ test('보증금 승계/반환: 실현손익 동일, 매도 달 이벤트 라벨�
   const ta = C.buildTimeline(a, {includeBuy:true, includeSell:true, months:70});
   const tb = C.buildTimeline(b, {includeBuy:true, includeSell:true, months:70});
   approx(ta.realized.profit, tb.realized.profit, 1);
+});
+test('타임라인: 증여 유입 + 증여세 유출 (10년 합산 누적)', () => {
+  const s = baseState();
+  s.flow.gifts = [
+    {month:'2026-08', rel:'parent', amount:1e8},
+    {month:'2027-02', rel:'parent', amount:5e7}  // 누적 1.5억
+  ];
+  const tl = C.buildTimeline(s, {includeBuy:false, includeSell:false, months:24});
+  const aug = tl.rows.find(r => r.ym === '2026-08');
+  assert.ok(aug.events.some(e => e.amt === 1e8 && /증여 \(/.test(e.label)));
+  const tax1 = C.giftTax(1e8, 'parent', s.rates).tax;   // 1차분
+  assert.ok(aug.events.some(e => e.amt === -tax1 && /증여세/.test(e.label)));
+  const feb = tl.rows.find(r => r.ym === '2027-02');
+  const taxTotal = C.giftTax(1.5e8, 'parent', s.rates).tax;
+  assert.ok(feb.events.some(e => e.amt === -(taxTotal - tax1)), '2차분은 누적세액-기납부');
+});
+test('타임라인: 차용 유입 → 매월 이자 → 만기 원금 상환', () => {
+  const s = baseState();
+  s.flow.borrowings = [{month:'2026-09', desc:'부모님', amount:2e8, rate:4.6, months:12}];
+  const tl = C.buildTimeline(s, {includeBuy:false, includeSell:false, months:24});
+  const sep = tl.rows.find(r => r.ym === '2026-09');
+  assert.ok(sep.events.some(e => e.amt === 2e8 && /차용/.test(e.label)));
+  const oct = tl.rows.find(r => r.ym === '2026-10');
+  const int = C.manFloor(2e8 * 4.6 / 1200); // 76만
+  assert.ok(oct.events.some(e => e.amt === -int && /차용 이자/.test(e.label)));
+  const rep = tl.rows.find(r => r.ym === '2027-09'); // 12개월 후
+  assert.ok(rep.events.some(e => e.amt === -2e8 && /원금 상환/.test(e.label)));
+  const after = tl.rows.find(r => r.ym === '2027-10');
+  assert.ok(!after.events.some(e => /차용 이자/.test(e.label)), '상환 후 이자 없음');
+});
+test('타임라인: 현금 보유 이자 (연 3%, 전월 양수 잔액 기준)', () => {
+  const s = baseState();
+  s.flow.cashRate = 3;
+  const tl = C.buildTimeline(s, {includeBuy:false, includeSell:false, months:3});
+  const m2 = tl.rows[1];
+  const expected = C.manFloor(tl.rows[0].balance * 3 / 1200);
+  const ev = m2.events.find(e => /현금 이자/.test(e.label));
+  assert.equal(ev.amt, expected);
 });
 test('부대비용 오버라이드 반영', () => {
   const s = baseState();
