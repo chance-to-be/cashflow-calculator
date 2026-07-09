@@ -217,7 +217,14 @@ table.cost tr.overridden .auto-note{color:var(--accent)}
     <button class="btn danger" id="btnDelScn">삭제</button>
     <button class="btn" id="btnExport">내보내기</button>
     <button class="btn" id="btnImport">가져오기</button>
+    <button class="btn" id="btnSample">샘플</button>
+    <button class="btn danger" id="btnReset">새로 시작</button>
     <input type="file" id="fileImport" accept=".json,application/json" style="display:none">
+  </div>
+
+  <div id="sampleBanner" style="display:none" class="valid ok">
+    👋 <b>샘플 데이터</b>가 입력되어 있어요. 탭을 넘기며 어떤 계산이 나오는지 둘러보고, 값을 내 상황으로 바꾸거나 위의 「새로 시작」으로 비우세요.
+    <button class="btn small" id="btnBannerClose" style="margin-left:6px">닫기</button>
   </div>
 
   <nav class="tabs">
@@ -1007,6 +1014,39 @@ function defaultState(){
 // JSON은 Infinity를 지원하지 않으므로 'INF' 문자열로 왕복
 function cloneRates(src){
   return JSON.parse(JSON.stringify(src, (k,v) => v === Infinity ? 'INF' : v), (k,v) => v === 'INF' ? Infinity : v);
+}
+// 처음 사용자를 위한 샘플 시나리오 — 오늘 기준 상대 시점으로 생성 (모든 기능 시연)
+function sampleState(){
+  const s = defaultState();
+  const base = ymToIdx(nowYm());
+  const ym = off => idxToYm(base + off);
+  s.flow.holdings = [
+    {cat:'예금', desc:'주거래 통장', amount:150000000},
+    {cat:'투자', desc:'주식·펀드', amount:50000000}
+  ];
+  s.flow.monthly = [
+    {cat:'급여', desc:'부부 합산 실수령', amount:7000000},
+    {cat:'생활비', desc:'고정+변동 지출', amount:-4000000}
+  ];
+  s.flow.inflows = [{month:ym(6), desc:'상여금', amount:10000000}];
+  s.flow.outflows = [{month:ym(5), desc:'가족 여행', amount:3000000}];
+  s.flow.gifts = [{month:ym(22), rel:'parent', amount:100000000}];
+  s.flow.borrowings = [{month:ym(22), desc:'부모님', amount:50000000, rate:2, months:36}];
+  s.flow.cashRate = 2;
+  s.flow.months = 30;
+  s.buy = {...s.buy,
+    type:'apt', over85:false, houses:1, adjusted:false, tenant:false, deposit:0,
+    month:ym(23), price:800000000,
+    payments: [
+      {month:ym(23), desc:'계약금', cash:80000000, loan:0},
+      {month:ym(27), desc:'잔금', cash:300000000, loan:420000000}
+    ],
+    loan: {type:'annuity', rate:3.8, years:30, grace:0, rateChanges:[{month:ym(51), rate:4.5}]},
+    finance: {income:80000000, existingDebt:0, dsrLimit:40, ltvLimit:null, stress:1.5},
+    viewMonths: 60
+  };
+  s.sell = {...s.sell, month:ym(87), price:1050000000, lived:true, liveMonths:60, depositMode:'assume'};
+  return s;
 }
 let state = defaultState();
 
@@ -1848,12 +1888,34 @@ function initInputs(){
   syncRateInputs(); renderBrackets();
 }
 
+$('#btnSample').addEventListener('click', () => {
+  if(!confirm('현재 입력을 샘플 데이터로 덮어쓸까요?\n(이름 붙여 저장한 시나리오는 유지됩니다)')) return;
+  state = sampleState();
+  initInputs(); recalc(); autosave();
+  $('#sampleBanner').style.display = '';
+});
+$('#btnReset').addEventListener('click', () => {
+  if(!confirm('모든 입력을 비우고 새로 시작할까요?\n(이름 붙여 저장한 시나리오는 유지됩니다)')) return;
+  state = defaultState();
+  currentScn = '';
+  initInputs(); recalc(); autosave();
+  $('#sampleBanner').style.display = 'none';
+  refreshScnSelect();
+});
+$('#btnBannerClose').addEventListener('click', () => $('#sampleBanner').style.display = 'none');
+
 // ---- 부팅 ----
-loadAuto();
+const hadData = loadAuto();
+if(!hadData){
+  // 첫 방문: 샘플 데이터로 시작해 사용법을 바로 볼 수 있게
+  state = sampleState();
+  $('#sampleBanner').style.display = '';
+}
 initInputs();
 bindRates();
 refreshScnSelect();
 recalc();
+if(!hadData) autosave();
 window.addEventListener('resize', () => onChange(true));
 </script>
 </body>
