@@ -13,7 +13,7 @@ assert.ok(m, 'index.html에서 CALC_CORE 블록을 찾지 못함');
 
 const exports_ = ['ymToIdx','idxToYm','ymShort','DEFAULT_RATES','loanSchedule','loanBalanceAt',
   'acqTaxRates','brokerageFee','stampDuty','bondCost','legalFee','acquisitionCosts',
-  'capitalGainsTax','resolvedCosts','buildTimeline','fmtManwon','manFloor','fmtKR','giftTax'];
+  'capitalGainsTax','resolvedCosts','buildTimeline','fmtManwon','manFloor','fmtKR','giftTax','ltvSuggest','annuityAnnualPayment'];
 const dir = mkdtempSync(join(tmpdir(), 'cfc-'));
 const modPath = join(dir, 'core.mjs');
 writeFileSync(modPath, m[1] + '\nexport {' + exports_.join(',') + '};\n');
@@ -84,6 +84,18 @@ test('변동금리 만기일시: 금리 변경 후 이자만 변동', () => {
   approx(s[0].interest, 250000, 1);
   approx(s[6].interest, Math.round(1e8*0.05/12), 2);
   assert.equal(s[23].balance, 0);
+});
+
+console.log('\n[LTV·DSR 간이 체크]');
+test('LTV 추천 한도: 무주택 비조정 70 / 조정 50 / 2주택 조정 30 / 3주택 조정 0', () => {
+  assert.equal(C.ltvSuggest(1, false), 70);
+  assert.equal(C.ltvSuggest(1, true), 50);
+  assert.equal(C.ltvSuggest(2, true), 30);
+  assert.equal(C.ltvSuggest(3, true), 0);
+});
+test('DSR용 연 원리금: 5억/4%/30년 → 월 2,387,076 × 12', () => {
+  approx(C.annuityAnnualPayment(5e8, 4, 30), 2387076*12, 60);
+  assert.equal(C.annuityAnnualPayment(0, 4, 30), 0);
 });
 
 console.log('\n[증여세]');
