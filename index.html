@@ -208,7 +208,8 @@ table.cost tr.overridden .auto-note{color:var(--accent)}
 <div class="app">
   <header class="top">
     <h1>🏠 부동산 현금흐름 계산기</h1>
-    <p>오프라인 사용 가능 · 입력값은 이 기기에 자동 저장됩니다</p>
+    <p>오프라인 사용 가능 · 입력값은 이 기기에 자동 저장됩니다 ·
+      <a href="analysis.html" style="color:var(--accent); text-decoration:none">📊 수도권 동네 분석 →</a></p>
   </header>
 
   <div class="scenario-bar">
@@ -1911,11 +1912,29 @@ if(!hadData){
   state = sampleState();
   $('#sampleBanner').style.display = '';
 }
+// 동네 분석(analysis.html)에서 넘어온 매입 금액 반영
+let handoff = null;
+try{
+  handoff = JSON.parse(localStorage.getItem('cfc:handoff:v1') || 'null');
+  localStorage.removeItem('cfc:handoff:v1');
+}catch(e){}
+if(handoff && +handoff.price > 0){
+  state.buy.price = Math.round(+handoff.price);
+}
 initInputs();
 bindRates();
 refreshScnSelect();
 recalc();
 if(!hadData) autosave();
+if(handoff && +handoff.price > 0){
+  autosave();
+  $$('nav.tabs button').find(b => b.dataset.tab === 'buy')?.click();
+  const note = el('div', {class: 'valid ok'},
+    `📊 동네 분석에서 매입 금액을 가져왔어요: ${handoff.label || ''} `,
+    el('b', {}, koreanWon(state.buy.price)),
+    el('button', {class: 'btn small', style: 'margin-left:6px', onclick: e => e.target.parentNode.remove()}, '닫기'));
+  $('nav.tabs').after(note);
+}
 window.addEventListener('resize', () => onChange(true));
 </script>
 </body>

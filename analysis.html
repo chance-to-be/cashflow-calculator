@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">
+<title>수도권 동네 분석 — 부동산 현금흐름 계산기</title>
+<style>
+:root{
+  --surface-1:#fcfcfb; --page:#f9f9f7;
+  --ink-1:#0b0b0b; --ink-2:#52514e; --ink-3:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+  --series-1:#2a78d6; --series-2:#1baf7a; --series-3:#d9750f; --neg:#e34948;
+  --good:#006300; --bad:#d03b3b;
+  --accent:#2a78d6; --accent-weak:rgba(42,120,214,.10);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --surface-1:#1a1a19; --page:#0d0d0d;
+    --ink-1:#ffffff; --ink-2:#c3c2b7; --ink-3:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+    --series-1:#3987e5; --series-2:#199e70; --series-3:#cc6a10; --neg:#e66767;
+    --good:#0ca30c; --bad:#e66767;
+    --accent:#3987e5; --accent-weak:rgba(57,135,229,.15);
+  }
+}
+*{box-sizing:border-box; margin:0; padding:0}
+html{font-size:15px}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI","Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+  background:var(--page); color:var(--ink-1); line-height:1.5; padding-bottom:60px;
+}
+.app{max-width:760px; margin:0 auto; padding:0 12px}
+header.top{padding:14px 2px 8px; display:flex; align-items:baseline; justify-content:space-between; gap:8px; flex-wrap:wrap}
+header.top h1{font-size:1.15rem; font-weight:700}
+header.top .sub{font-size:.75rem; color:var(--ink-3)}
+a.backlink{font-size:.82rem; color:var(--accent); text-decoration:none; white-space:nowrap}
+a.backlink:hover{text-decoration:underline}
+
+.card{background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:12px; margin:10px 0}
+.card h2{font-size:.95rem; font-weight:700; margin-bottom:4px}
+.card h2 .hint{font-weight:400; font-size:.75rem; color:var(--ink-3); margin-left:6px}
+.card .desc{font-size:.75rem; color:var(--ink-3); margin-bottom:8px}
+
+.banner{border:1px solid var(--border); border-left:3px solid var(--series-3); border-radius:10px;
+  background:var(--surface-1); padding:9px 12px; font-size:.8rem; margin:10px 0; color:var(--ink-2)}
+.banner b{color:var(--ink-1)}
+.banner a{color:var(--accent)}
+
+/* 필터: 차트 위 단일 행 그룹 */
+.filters{display:flex; gap:8px 10px; flex-wrap:wrap; align-items:flex-end}
+.fld label{display:block; font-size:.72rem; color:var(--ink-3); font-weight:600; margin-bottom:2px}
+.fld input, .fld select{
+  border:1px solid var(--border); background:var(--page); color:var(--ink-1);
+  border-radius:7px; padding:6px 8px; font-size:.85rem; font-family:inherit; width:100%;
+}
+.fld input:focus, .fld select:focus{outline:2px solid var(--accent-weak); border-color:var(--accent)}
+.fld.narrow{width:110px}
+.seg{display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden}
+.seg button{border:none; background:var(--page); color:var(--ink-2); padding:7px 10px; font-size:.8rem; cursor:pointer}
+.seg button.on{background:var(--accent); color:#fff; font-weight:600}
+.checkline{display:flex; align-items:center; gap:6px; font-size:.8rem; padding:6px 0; color:var(--ink-2)}
+.checkline input{width:16px; height:16px; accent-color:var(--accent)}
+.won{font-size:.7rem; color:var(--accent); min-height:1em; font-variant-numeric:tabular-nums}
+
+/* 랭킹 표 */
+.tablewrap{overflow-x:auto; -webkit-overflow-scrolling:touch}
+table.rank{width:100%; border-collapse:collapse; font-size:.8rem; min-width:640px}
+table.rank th{
+  text-align:right; font-size:.7rem; color:var(--ink-3); font-weight:600; padding:4px 6px;
+  border-bottom:1px solid var(--grid); cursor:pointer; user-select:none; white-space:nowrap;
+}
+table.rank th:first-child{text-align:left}
+table.rank th.sorted{color:var(--accent)}
+table.rank td{padding:5px 6px; text-align:right; border-bottom:1px solid var(--grid);
+  font-variant-numeric:tabular-nums; white-space:nowrap}
+table.rank td:first-child{text-align:left}
+table.rank tbody tr{cursor:pointer}
+table.rank tbody tr:hover{background:var(--accent-weak)}
+table.rank tbody tr.sel{background:var(--accent-weak); outline:1px solid var(--accent)}
+table.rank .dong{font-weight:600}
+table.rank .sgg{color:var(--ink-3); font-size:.72rem}
+.updown-pos{color:var(--bad)}   /* 상승 = 빨강 (국내 관례) */
+.updown-neg{color:var(--series-1)}
+.stchip{display:inline-block; font-size:.68rem; color:var(--ink-2); background:var(--accent-weak);
+  border-radius:5px; padding:0 5px; margin-left:3px}
+
+/* 차트 공통 */
+.chart{position:relative; margin-top:6px}
+.chart svg{display:block; width:100%; height:auto}
+.legend{display:flex; gap:12px; flex-wrap:wrap; font-size:.72rem; color:var(--ink-2); margin:4px 2px}
+.legend .key{display:inline-flex; align-items:center; gap:5px}
+.legend .swatch{width:10px; height:10px; border-radius:3px}
+.legend .linekey{width:14px; height:2px; border-radius:1px}
+#tooltip{
+  position:fixed; z-index:99; pointer-events:none; display:none;
+  background:var(--surface-1); border:1px solid var(--border); border-radius:8px;
+  box-shadow:0 4px 14px rgba(0,0,0,.15); padding:7px 10px; font-size:.75rem; max-width:240px;
+}
+#tooltip .tt-title{color:var(--ink-3); font-size:.68rem; margin-bottom:2px}
+#tooltip .tt-row{display:flex; align-items:center; gap:6px}
+#tooltip .tt-key{width:12px; height:2px; border-radius:1px; flex:none}
+#tooltip .tt-val{font-weight:700; font-variant-numeric:tabular-nums}
+#tooltip .tt-name{color:var(--ink-2)}
+
+/* 상세 */
+#detail .stations{margin:2px 0 6px}
+.btnrow{margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.btn{border:1px solid var(--border); background:var(--surface-1); color:var(--ink-1);
+  border-radius:8px; padding:7px 12px; font-size:.84rem; cursor:pointer; text-decoration:none}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+.btn:active{transform:translateY(1px)}
+table.cxt{width:100%; border-collapse:collapse; font-size:.78rem}
+table.cxt th{text-align:right; font-size:.7rem; color:var(--ink-3); padding:3px 6px; border-bottom:1px solid var(--grid); white-space:nowrap}
+table.cxt th:first-child, table.cxt td:first-child{text-align:left}
+table.cxt td{padding:4px 6px; text-align:right; border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums}
+details.tbl{margin-top:8px; font-size:.78rem}
+details.tbl summary{cursor:pointer; color:var(--ink-3); font-size:.74rem}
+details.tbl table{width:100%; border-collapse:collapse; margin-top:6px}
+details.tbl th, details.tbl td{padding:3px 6px; text-align:right; border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums; font-size:.74rem}
+details.tbl th{color:var(--ink-3); font-weight:600}
+
+.foot{font-size:.72rem; color:var(--ink-3); margin:14px 2px; line-height:1.6}
+.foot b{color:var(--ink-2)}
+#loading{padding:30px 0; text-align:center; color:var(--ink-3); font-size:.85rem}
+.count{font-size:.74rem; color:var(--ink-3); margin:4px 2px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>📊 수도권 동네 분석</h1>
+      <div class="sub" id="dataStatus">데이터 불러오는 중…</div>
+    </div>
+    <a class="backlink" href="index.html">🏠 현금흐름 계산기 →</a>
+  </header>
+
+  <div id="demoBanner" class="banner" style="display:none">
+    지금 보이는 것은 <b>데모 데이터</b>입니다 (실제 시세 아님).
+    실제 공공데이터 연결 방법은 저장소의 <b>docs/DATA_SETUP.md</b>를 참고하세요 —
+    API 키 2개를 등록하면 GitHub Actions가 국토부 실거래가와 지하철 승하차량을 자동 수집합니다.
+  </div>
+  <div id="fileWarn" class="banner" style="display:none">
+    이 페이지는 데이터 파일을 불러와야 해서 <b>웹 서버(GitHub Pages) 환경</b>에서 동작합니다.
+    파일로 직접 열었다면 배포된 주소로 접속하거나 <b>npx serve</b> 같은 로컬 서버로 열어 주세요.
+  </div>
+
+  <div id="loading">데이터 불러오는 중…</div>
+
+  <div id="main" style="display:none">
+    <div class="card">
+      <h2>조건 <span class="hint">모든 차트와 표에 동일하게 적용</span></h2>
+      <div class="filters">
+        <div class="fld">
+          <label>지역</label>
+          <div class="seg" id="segSido">
+            <button data-v="all" class="on">전체</button><button data-v="서울">서울</button><button data-v="경기">경기</button><button data-v="인천">인천</button>
+          </div>
+        </div>
+        <div class="fld narrow">
+          <label>평형 (전용)</label>
+          <select id="selBucket">
+            <option value="m" selected>60~85㎡</option>
+            <option value="s">60㎡ 미만</option>
+            <option value="l">85㎡ 초과</option>
+          </select>
+        </div>
+        <div class="fld narrow">
+          <label>예산 상한 (만원)</label>
+          <input id="inpBudget" inputmode="numeric" placeholder="예: 90000">
+          <div class="won" id="budgetWon"></div>
+        </div>
+        <div class="fld narrow">
+          <label>최소 거래 (12개월)</label>
+          <input id="inpMinVol" inputmode="numeric" value="10">
+        </div>
+        <label class="checkline"><input type="checkbox" id="chkStation">역세권 데이터 있는 동만</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>승하차량 × 평당가 <span class="hint">점 = 법정동 · 점을 누르면 상세</span></h2>
+      <div class="desc">오른쪽 아래일수록 통행량 대비 평당가가 낮은 동네입니다. 역이 소재한 법정동 기준이라 참고용이며, 상관관계이지 인과관계는 아닙니다.</div>
+      <div class="legend" id="scatterLegend"></div>
+      <div class="chart" id="scatter"></div>
+    </div>
+
+    <div class="card">
+      <h2>동네 랭킹 <span class="hint">열 제목을 누르면 정렬 · 행을 누르면 상세</span></h2>
+      <div class="count" id="rankCount"></div>
+      <div class="tablewrap">
+        <table class="rank" id="rankTable">
+          <thead><tr>
+            <th data-k="name">동네</th>
+            <th data-k="med">중위가</th>
+            <th data-k="py">평당가</th>
+            <th data-k="yoy">1년 변화</th>
+            <th data-k="vol">거래(12M)</th>
+            <th data-k="ride">승하차/일</th>
+            <th data-k="value" class="sorted">통행량÷평당가</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" id="detail" style="display:none">
+      <h2 id="detailTitle"></h2>
+      <div class="stations" id="detailStations"></div>
+      <div id="detailCharts"></div>
+      <div id="detailComplexes"></div>
+      <div class="btnrow">
+        <button class="btn primary" id="btnHandoff"></button>
+        <span class="won" id="handoffNote"></span>
+      </div>
+    </div>
+
+    <div class="foot" id="footNotes"></div>
+  </div>
+</div>
+<div id="tooltip" role="status"></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const SIDO_COLOR = {'서울': '--series-1', '경기': '--series-2', '인천': '--series-3'};
+const BUCKET_LABEL = {s: '전용 60㎡ 미만', m: '전용 60~85㎡', l: '전용 85㎡ 초과'};
+
+// ---------- 포맷 ----------
+const comma = n => Math.round(n).toLocaleString('ko-KR');
+function fmtEok(man){ // 만원 → 억/만
+  if(man == null) return '—';
+  const eok = Math.floor(man / 10000), rest = Math.round(man % 10000);
+  if(eok && rest) return `${eok}억 ${comma(rest)}만`;
+  if(eok) return `${eok}억`;
+  return `${comma(rest)}만`;
+}
+const fmtMan = man => man == null ? '—' : comma(man) + '만';
+const fmtPct = p => p == null ? '—' : (p > 0 ? '+' : '') + p.toFixed(1) + '%';
+const fmtYm = ym => ym.slice(2).replace('-', '.');
+
+// ---------- 상태 ----------
+const F = {sido: 'all', bucket: 'm', budget: null, minVol: 10, stationOnly: false,
+           sortKey: 'value', sortDir: -1};
+let SUMMARY = null, INDEX = null, selected = null;
+const cache = {regions: {}, ridership: null};
+
+// ---------- 데이터 로드 ----------
+async function loadJson(path){
+  const res = await fetch(path);
+  if(!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
+  return res.json();
+}
+async function boot(){
+  try{
+    [INDEX, SUMMARY] = await Promise.all([loadJson('data/index.json'), loadJson('data/summary.json')]);
+  }catch(e){
+    $('#loading').style.display = 'none';
+    if(location.protocol === 'file:') $('#fileWarn').style.display = '';
+    else $('#loading').style.display = '', $('#loading').textContent = '데이터를 불러오지 못했습니다: ' + e.message;
+    return;
+  }
+  $('#loading').style.display = 'none';
+  $('#main').style.display = '';
+  if(INDEX.demo) $('#demoBanner').style.display = '';
+  const t = INDEX.updatedThrough || {};
+  $('#dataStatus').textContent =
+    `실거래가 ~${t.trades || '없음'} · 지하철 승하차 ~${t.subway || '없음'}` + (INDEX.demo ? ' · 데모' : '');
+  $('#footNotes').innerHTML = '';
+  const foot = document.createElement('div');
+  foot.append(...[
+    '출처: 국토교통부 아파트 매매 실거래가(법정동·월 집계), 서울열린데이터광장 지하철 역별 승하차(평일 일평균). ',
+    '읽는 법 — 중위가·평당가는 선택한 평형 구간의 최근 3개월 거래 기준(거래량 가중 근사)이며, 거래가 적은 동은 값이 크게 흔들립니다. ',
+    '승하차는 역이 소재한 법정동에만 연결한 1단계 매핑입니다(인접 동 미반영). 카드 통계에 포함되지 않는 노선은 빠질 수 있습니다. ',
+    '통행량÷평당가 지수는 탐색용 상대 지표일 뿐 저평가의 증거가 아닙니다. 모든 수치는 참고용이며 실제 거래 전 반드시 전문가와 확인하세요.'
+  ].map(s => Object.assign(document.createElement('span'), {textContent: s})));
+  $('#footNotes').append(foot);
+  bindFilters();
+  render();
+}
+
+// ---------- 필터 ----------
+function bindFilters(){
+  $$('#segSido button').forEach(b => b.onclick = () => {
+    $$('#segSido button').forEach(x => x.classList.toggle('on', x === b));
+    F.sido = b.dataset.v; render();
+  });
+  $('#selBucket').onchange = e => { F.bucket = e.target.value; render(); renderDetail(); };
+  $('#inpBudget').oninput = e => {
+    const v = Number(e.target.value.replace(/[^\d]/g, '')) || null;
+    F.budget = v;
+    $('#budgetWon').textContent = v ? fmtEok(v) + '원 이하' : '';
+    render();
+  };
+  $('#inpMinVol').oninput = e => { F.minVol = Number(e.target.value) || 0; render(); };
+  $('#chkStation').onchange = e => { F.stationOnly = e.target.checked; render(); };
+}
+
+function filteredRows(){
+  const b = F.bucket;
+  const rows = [];
+  for(const r of SUMMARY.rows){
+    const stat = r.b[b];
+    if(!stat) continue;
+    if(F.sido !== 'all' && r.sido !== F.sido) continue;
+    if(F.budget && stat[1] > F.budget) continue;
+    if(r.vol12 < F.minVol) continue;
+    if(F.stationOnly && !r.ride) continue;
+    rows.push({
+      key: r.code + '|' + r.dong, r,
+      name: `${r.sgg} ${r.dong}`,
+      med: stat[1], py: stat[2], n3: stat[0],
+      yoy: r.yoy[b] ?? null, vol: r.vol12,
+      ride: r.ride || null,
+      value: r.ride && stat[2] ? r.ride / stat[2] : null
+    });
+  }
+  // 통행량÷평당가를 최대 100 기준 상대 지수로
+  const maxV = Math.max(0, ...rows.map(x => x.value || 0));
+  for(const x of rows) x.value = x.value != null && maxV ? Math.round(x.value / maxV * 100) : null;
+  return rows;
+}
+
+// ---------- 렌더 ----------
+function render(){
+  const rows = filteredRows();
+  renderScatter(rows);
+  renderTable(rows);
+}
+
+function sortRows(rows){
+  const k = F.sortKey, d = F.sortDir;
+  return [...rows].sort((a, b) => {
+    const av = a[k], bv = b[k];
+    if(av == null && bv == null) return 0;
+    if(av == null) return 1;
+    if(bv == null) return -1;
+    if(k === 'name') return d * String(av).localeCompare(bv, 'ko');
+    return d * (av - bv);
+  });
+}
+
+function renderTable(rows){
+  $('#rankCount').textContent = `${rows.length}개 동 · ${BUCKET_LABEL[F.bucket]} · 최근 3개월 거래 기준`;
+  $$('#rankTable th').forEach(th => {
+    th.classList.toggle('sorted', th.dataset.k === F.sortKey);
+    th.onclick = () => {
+      if(F.sortKey === th.dataset.k) F.sortDir *= -1;
+      else { F.sortKey = th.dataset.k; F.sortDir = th.dataset.k === 'name' ? 1 : -1; }
+      renderTable(rows);
+    };
+  });
+  const tb = $('#rankTable tbody');
+  tb.textContent = '';
+  for(const x of sortRows(rows).slice(0, 200)){
+    const tr = document.createElement('tr');
+    tr.className = selected === x.key ? 'sel' : '';
+    const tdName = document.createElement('td');
+    const dongEl = document.createElement('span'); dongEl.className = 'dong'; dongEl.textContent = x.r.dong;
+    const sggEl = document.createElement('span'); sggEl.className = 'sgg'; sggEl.textContent = ` ${x.r.sido} ${x.r.sgg}`;
+    tdName.append(dongEl, sggEl);
+    if(x.r.st.length){
+      const chip = document.createElement('span'); chip.className = 'stchip';
+      chip.textContent = '🚇' + x.r.st.slice(0, 2).join('·') + (x.r.st.length > 2 ? '+' : '');
+      tdName.append(chip);
+    }
+    const cells = [fmtEok(x.med), fmtMan(x.py), fmtPct(x.yoy), comma(x.vol) + '건',
+                   x.ride ? comma(x.ride) : '—', x.value != null ? x.value : '—'];
+    tr.append(tdName, ...cells.map((v, i) => {
+      const td = document.createElement('td'); td.textContent = v;
+      if(i === 2 && x.yoy != null) td.className = x.yoy > 0 ? 'updown-pos' : x.yoy < 0 ? 'updown-neg' : '';
+      return td;
+    }));
+    tr.onclick = () => selectDong(x);
+    tb.append(tr);
+  }
+}
+
+// ---------- 툴팁 ----------
+const tt = $('#tooltip');
+function showTooltip(evt, title, rows){ // rows: [{color, name, val}]
+  tt.textContent = '';
+  const t = document.createElement('div'); t.className = 'tt-title'; t.textContent = title;
+  tt.append(t);
+  for(const r of rows){
+    const row = document.createElement('div'); row.className = 'tt-row';
+    const key = document.createElement('span'); key.className = 'tt-key';
+    key.style.background = r.color || 'transparent';
+    const val = document.createElement('span'); val.className = 'tt-val'; val.textContent = r.val;
+    const name = document.createElement('span'); name.className = 'tt-name'; name.textContent = r.name || '';
+    row.append(key, val, name);
+    tt.append(row);
+  }
+  tt.style.display = 'block';
+  const pad = 14, w = tt.offsetWidth, h = tt.offsetHeight;
+  let x = evt.clientX + pad, y = evt.clientY + pad;
+  if(x + w > innerWidth - 8) x = evt.clientX - w - pad;
+  if(y + h > innerHeight - 8) y = evt.clientY - h - pad;
+  tt.style.left = x + 'px'; tt.style.top = y + 'px';
+}
+function hideTooltip(){ tt.style.display = 'none'; }
+
+// ---------- SVG 헬퍼 ----------
+const NS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs){
+  const e = document.createElementNS(NS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function niceTicks(min, max, n = 4){
+  if(min === max){ min = min * 0.9; max = max * 1.1 || 1; }
+  const span = max - min, step0 = span / n, mag = 10 ** Math.floor(Math.log10(step0));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= n + 1) || mag * 10;
+  const ticks = [];
+  for(let v = Math.ceil(min / step) * step; v <= max + step * 0.01; v += step) ticks.push(v);
+  return ticks;
+}
+
+// ---------- 산점도 ----------
+function renderScatter(rows){
+  const host = $('#scatter'); host.textContent = '';
+  const pts = rows.filter(x => x.ride && x.py);
+  const legend = $('#scatterLegend'); legend.textContent = '';
+  for(const sido of ['서울', '경기', '인천']){
+    if(F.sido !== 'all' && F.sido !== sido) continue;
+    const key = document.createElement('span'); key.className = 'key';
+    const sw = document.createElement('span'); sw.className = 'swatch';
+    sw.style.background = css(SIDO_COLOR[sido]);
+    key.append(sw, document.createTextNode(sido));
+    legend.append(key);
+  }
+  if(!pts.length){
+    host.textContent = '표시할 역세권 동이 없습니다 — 필터를 넓혀 보세요.';
+    host.style.cssText = 'font-size:.8rem;color:var(--ink-3);padding:16px 0';
+    return;
+  }
+  host.style.cssText = '';
+  const W = 720, H = 340, L = 56, R = 14, T = 10, B = 34;
+  const xs = pts.map(p => Math.log10(p.ride)), ys = pts.map(p => p.py);
+  const xmin = Math.min(...xs) - 0.05, xmax = Math.max(...xs) + 0.05;
+  const ymin = Math.min(...ys) * 0.92, ymax = Math.max(...ys) * 1.06;
+  const X = v => L + (Math.log10(v) - xmin) / (xmax - xmin) * (W - L - R);
+  const Y = v => T + (1 - (v - ymin) / (ymax - ymin)) * (H - T - B);
+  const svg = svgEl('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img',
+    'aria-label': '역 평일 승하차량 대비 평당가 산점도. 상세 수치는 아래 랭킹 표에 있습니다.'});
+  // 격자·축 (은은하게)
+  for(const yv of niceTicks(ymin, ymax, 4)){
+    svg.append(svgEl('line', {x1: L, x2: W - R, y1: Y(yv), y2: Y(yv), stroke: css('--grid'), 'stroke-width': 1}));
+    const t = svgEl('text', {x: L - 6, y: Y(yv) + 3, 'text-anchor': 'end', 'font-size': 10, fill: css('--ink-3')});
+    t.textContent = comma(yv); svg.append(t);
+  }
+  for(const xv of [5000, 10000, 20000, 50000, 100000, 200000, 500000]){
+    if(Math.log10(xv) < xmin || Math.log10(xv) > xmax) continue;
+    svg.append(svgEl('line', {x1: X(xv), x2: X(xv), y1: T, y2: H - B, stroke: css('--grid'), 'stroke-width': 1}));
+    const t = svgEl('text', {x: X(xv), y: H - B + 14, 'text-anchor': 'middle', 'font-size': 10, fill: css('--ink-3')});
+    t.textContent = xv >= 10000 ? (xv / 10000) + '만' : comma(xv); svg.append(t);
+  }
+  const xl = svgEl('text', {x: W - R, y: H - 4, 'text-anchor': 'end', 'font-size': 10, fill: css('--ink-3')});
+  xl.textContent = '인근 역 평일 승하차(명/일, 로그)'; svg.append(xl);
+  const yl = svgEl('text', {x: L, y: T - 1, 'font-size': 10, fill: css('--ink-3'), 'text-anchor': 'start'});
+  yl.textContent = '평당가(만원)'; svg.append(yl);
+  // 점 + 넉넉한 히트 영역
+  for(const p of pts){
+    const cx = X(p.ride), cy = Y(p.py), color = css(SIDO_COLOR[p.r.sido]);
+    const g = svgEl('g', {tabindex: 0, role: 'button', cursor: 'pointer'});
+    g.append(svgEl('circle', {cx, cy, r: 6.5, fill: css('--surface-1')}));           // 표면 링
+    const dot = svgEl('circle', {cx, cy, r: 4.5, fill: color});
+    g.append(dot);
+    g.append(svgEl('circle', {cx, cy, r: 13, fill: 'transparent'}));                 // 히트 타깃
+    const show = evt => {
+      dot.setAttribute('r', 6);
+      showTooltip(evt, `${p.r.sido} ${p.r.sgg} ${p.r.dong}`, [
+        {color, val: fmtMan(p.py) + '/평', name: '평당가'},
+        {color: 'transparent', val: comma(p.ride), name: '승하차/일'},
+        {color: 'transparent', val: fmtEok(p.med), name: '중위가'}
+      ]);
+    };
+    const hide = () => { dot.setAttribute('r', 4.5); hideTooltip(); };
+    g.addEventListener('pointermove', show);
+    g.addEventListener('pointerleave', hide);
+    g.addEventListener('focus', e => show({clientX: innerWidth / 2, clientY: innerHeight / 3}));
+    g.addEventListener('blur', hide);
+    g.addEventListener('click', () => selectDong(p));
+    svg.append(g);
+  }
+  host.append(svg);
+}
+
+// ---------- 라인·바 차트 ----------
+function lineChart(host, series, {yFmt = comma, months, height = 220} = {}){
+  // series: [{name, color, data: {ym: value}}]
+  host.textContent = '';
+  const W = 720, H = height, L = 52, R = 12, T = 10, B = 26;
+  const xs = months;
+  const allVals = series.flatMap(s => xs.map(m => s.data[m]).filter(v => v != null));
+  if(!allVals.length){ host.textContent = '데이터 없음'; host.style.cssText = 'font-size:.78rem;color:var(--ink-3)'; return; }
+  const ymin = Math.min(...allVals) * 0.94, ymax = Math.max(...allVals) * 1.05;
+  const X = i => L + i / Math.max(1, xs.length - 1) * (W - L - R);
+  const Y = v => T + (1 - (v - ymin) / (ymax - ymin || 1)) * (H - T - B);
+  const svg = svgEl('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img'});
+  for(const yv of niceTicks(ymin, ymax, 3)){
+    svg.append(svgEl('line', {x1: L, x2: W - R, y1: Y(yv), y2: Y(yv), stroke: css('--grid'), 'stroke-width': 1}));
+    const t = svgEl('text', {x: L - 6, y: Y(yv) + 3, 'text-anchor': 'end', 'font-size': 10, fill: css('--ink-3')});
+    t.textContent = yFmt(yv); svg.append(t);
+  }
+  xs.forEach((m, i) => {
+    if(i % Math.ceil(xs.length / 6) !== 0) return;
+    const t = svgEl('text', {x: X(i), y: H - 8, 'text-anchor': 'middle', 'font-size': 10, fill: css('--ink-3')});
+    t.textContent = fmtYm(m); svg.append(t);
+  });
+  for(const s of series){
+    let d = '', last = null;
+    xs.forEach((m, i) => {
+      const v = s.data[m];
+      if(v == null){ return; }
+      d += (d ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1);
+      last = {i, v};
+    });
+    if(!d) continue;
+    if(series.length === 1){ // 단일 시리즈: 은은한 면 워시
+      const area = d + `L${X(last.i).toFixed(1)} ${H - B}L${L} ${H - B}Z`;
+      svg.append(svgEl('path', {d: area, fill: s.color, opacity: 0.1}));
+    }
+    svg.append(svgEl('path', {d, fill: 'none', stroke: s.color, 'stroke-width': 2,
+      'stroke-linecap': 'round', 'stroke-linejoin': 'round'}));
+    if(last){
+      svg.append(svgEl('circle', {cx: X(last.i), cy: Y(last.v), r: 6, fill: css('--surface-1')}));
+      svg.append(svgEl('circle', {cx: X(last.i), cy: Y(last.v), r: 4, fill: s.color}));
+      const t = svgEl('text', {x: X(last.i) - 8, y: Y(last.v) - 9, 'text-anchor': 'end',
+        'font-size': 10, 'font-weight': 700, fill: css('--ink-1')});
+      t.textContent = yFmt(last.v); svg.append(t);
+    }
+  }
+  // 크로스헤어 + 통합 툴팁
+  const cross = svgEl('line', {y1: T, y2: H - B, stroke: css('--axis'), 'stroke-width': 1, visibility: 'hidden'});
+  svg.append(cross);
+  svg.addEventListener('pointermove', evt => {
+    const r = svg.getBoundingClientRect();
+    const px = (evt.clientX - r.left) / r.width * W;
+    const i = Math.max(0, Math.min(xs.length - 1, Math.round((px - L) / (W - L - R) * (xs.length - 1))));
+    cross.setAttribute('x1', X(i)); cross.setAttribute('x2', X(i));
+    cross.setAttribute('visibility', 'visible');
+    showTooltip(evt, fmtYm(xs[i]), series
+      .filter(s => s.data[xs[i]] != null)
+      .map(s => ({color: s.color, val: yFmt(s.data[xs[i]]), name: s.name})));
+  });
+  svg.addEventListener('pointerleave', () => { cross.setAttribute('visibility', 'hidden'); hideTooltip(); });
+  host.append(svg);
+}
+
+function barChart(host, data, {color, yFmt = comma, months, height = 150} = {}){
+  host.textContent = '';
+  const W = 720, H = height, L = 40, R = 12, T = 8, B = 26;
+  const xs = months;
+  const vals = xs.map(m => data[m] || 0);
+  const ymax = Math.max(...vals, 1) * 1.1;
+  const slot = (W - L - R) / xs.length;
+  const bw = Math.min(24, Math.max(3, slot - 2)); // 두께 ≤24px, 2px 간격
+  const Y = v => T + (1 - v / ymax) * (H - T - B);
+  const svg = svgEl('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img'});
+  for(const yv of niceTicks(0, ymax, 2)){
+    if(yv === 0) continue;
+    svg.append(svgEl('line', {x1: L, x2: W - R, y1: Y(yv), y2: Y(yv), stroke: css('--grid'), 'stroke-width': 1}));
+    const t = svgEl('text', {x: L - 5, y: Y(yv) + 3, 'text-anchor': 'end', 'font-size': 10, fill: css('--ink-3')});
+    t.textContent = yFmt(yv); svg.append(t);
+  }
+  xs.forEach((m, i) => {
+    if(i % Math.ceil(xs.length / 6) === 0){
+      const t = svgEl('text', {x: L + slot * i + slot / 2, y: H - 8, 'text-anchor': 'middle', 'font-size': 10, fill: css('--ink-3')});
+      t.textContent = fmtYm(m); svg.append(t);
+    }
+    const v = data[m] || 0;
+    const x = L + slot * i + (slot - bw) / 2, y = Y(v), h = H - B - y;
+    if(v > 0){
+      const bar = svgEl('path', {d: roundTopRect(x, y, bw, h, Math.min(4, bw / 2)), fill: color});
+      const hit = svgEl('rect', {x: L + slot * i, y: T, width: slot, height: H - T - B, fill: 'transparent'});
+      const show = evt => { bar.setAttribute('opacity', 0.75); showTooltip(evt, fmtYm(m), [{color, val: yFmt(v), name: '거래'}]); };
+      const hide = () => { bar.setAttribute('opacity', 1); hideTooltip(); };
+      hit.addEventListener('pointermove', show);
+      hit.addEventListener('pointerleave', hide);
+      svg.append(bar, hit);
+    }
+  });
+  svg.append(svgEl('line', {x1: L, x2: W - R, y1: H - B, y2: H - B, stroke: css('--axis'), 'stroke-width': 1}));
+  host.append(svg);
+}
+function roundTopRect(x, y, w, h, r){ // 데이터 끝만 둥글게, 밑변은 직각
+  r = Math.min(r, h);
+  return `M${x} ${y + h}V${y + r}Q${x} ${y} ${x + r} ${y}H${x + w - r}Q${x + w} ${y} ${x + w} ${y + r}V${y + h}Z`;
+}
+
+// ---------- 상세 ----------
+async function selectDong(x){
+  selected = x.key;
+  renderTable(filteredRows());
+  $('#detail').style.display = '';
+  $('#detailTitle').textContent = `${x.r.sido} ${x.r.sgg} ${x.r.dong}`;
+  $('#detailCharts').textContent = '불러오는 중…';
+  $('#detailComplexes').textContent = '';
+  $('#detail').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  try{
+    if(!cache.regions[x.r.code]) cache.regions[x.r.code] = await loadJson(`data/prices/${x.r.code}.json`);
+    if(!cache.ridership && x.r.st.length) cache.ridership = await loadJson('data/subway/ridership.json');
+  }catch(e){
+    $('#detailCharts').textContent = '상세 데이터를 불러오지 못했습니다: ' + e.message;
+    return;
+  }
+  renderDetail();
+}
+
+function renderDetail(){
+  if(!selected || $('#detail').style.display === 'none') return;
+  const [code, dong] = selected.split('|');
+  const region = cache.regions[code];
+  if(!region) return;
+  const months = SUMMARY.months;
+  const b = F.bucket;
+
+  // 역 정보
+  const row = SUMMARY.rows.find(r => r.code === code && r.dong === dong);
+  const stHost = $('#detailStations'); stHost.textContent = '';
+  for(const st of row?.st || []){
+    const chip = document.createElement('span'); chip.className = 'stchip';
+    chip.textContent = '🚇 ' + st;
+    stHost.append(chip, document.createTextNode(' '));
+  }
+
+  // 월별 시리즈
+  const pyData = {}, volData = {};
+  for(const ym of months){
+    const d = region.months[ym]?.[dong];
+    if(!d) continue;
+    if(d.buckets[b]) pyData[ym] = d.buckets[b][2];
+    volData[ym] = Object.values(d.buckets).reduce((s, bk) => s + bk[0], 0);
+  }
+  const host = $('#detailCharts'); host.textContent = '';
+  const mk = (title, hint) => {
+    const h = document.createElement('h2'); h.style.marginTop = '10px';
+    h.textContent = title;
+    if(hint){ const sp = document.createElement('span'); sp.className = 'hint'; sp.textContent = hint; h.append(sp); }
+    const div = document.createElement('div'); div.className = 'chart';
+    host.append(h, div);
+    return div;
+  };
+  lineChart(mk(`평당가 추이`, BUCKET_LABEL[b] + ' · 만원/평'), [
+    {name: '평당가', color: css('--series-1'), data: pyData}
+  ], {months});
+  barChart(mk('월 거래량', '전 평형 합계 · 건'), volData, {color: css('--series-1'), months});
+
+  // 지하철 승하차 추이 (역별 최대 3개 라인, 그 이상은 합계)
+  if(row?.st?.length && cache.ridership){
+    const palette = ['--series-1', '--series-2', '--series-3'];
+    let series;
+    if(row.st.length <= 3){
+      series = row.st.map((st, i) => ({
+        name: st, color: css(palette[i]),
+        data: Object.fromEntries(Object.entries(cache.ridership.stations[st]?.months || {}).map(([m, v]) => [m, v[1]]))
+      }));
+    }else{
+      const sum = {};
+      for(const st of row.st){
+        for(const [m, v] of Object.entries(cache.ridership.stations[st]?.months || {})) sum[m] = (sum[m] || 0) + v[1];
+      }
+      series = [{name: row.st.length + '개 역 합계', color: css('--series-1'), data: sum}];
+    }
+    const div = mk('인근 역 평일 승하차', '명/일');
+    if(series.length > 1){
+      const lg = document.createElement('div'); lg.className = 'legend';
+      for(const s of series){
+        const key = document.createElement('span'); key.className = 'key';
+        const sw = document.createElement('span'); sw.className = 'linekey'; sw.style.background = s.color;
+        key.append(sw, document.createTextNode(s.name));
+        lg.append(key);
+      }
+      div.before(lg);
+    }
+    lineChart(div, series, {months, height: 180});
+  }
+
+  // 월별 수치 표 (차트와 동일 데이터)
+  const det = document.createElement('details'); det.className = 'tbl';
+  const sum2 = document.createElement('summary'); sum2.textContent = '월별 수치 표 보기';
+  const tbl = document.createElement('table');
+  const hd = document.createElement('tr');
+  for(const h of ['월', '평당가(만)', '거래(건)']){
+    const th = document.createElement('th'); th.textContent = h; hd.append(th);
+  }
+  tbl.append(hd);
+  for(const ym of months){
+    if(pyData[ym] == null && !volData[ym]) continue;
+    const tr = document.createElement('tr');
+    for(const v of [fmtYm(ym), pyData[ym] != null ? comma(pyData[ym]) : '—', volData[ym] || 0]){
+      const td = document.createElement('td'); td.textContent = v; tr.append(td);
+    }
+    tbl.append(tr);
+  }
+  det.append(sum2, tbl);
+  host.append(det);
+
+  // 단지별 최근 12개월
+  const last12 = months.slice(-12);
+  const cx = {};
+  for(const ym of last12){
+    const d = region.months[ym]?.[dong];
+    if(!d) continue;
+    for(const [name, c] of Object.entries(d.complexes)){
+      const acc = cx[name] ??= {n: 0, wsum: 0, asum: 0, built: c[3]};
+      acc.n += c[0]; acc.wsum += c[1] * c[0]; acc.asum += c[2] * c[0];
+      if(c[3]) acc.built = c[3];
+    }
+  }
+  const cxHost = $('#detailComplexes'); cxHost.textContent = '';
+  const entries = Object.entries(cx).sort((a, b) => b[1].n - a[1].n).slice(0, 15);
+  if(entries.length){
+    const h = document.createElement('h2'); h.style.marginTop = '10px';
+    h.textContent = '단지별 거래 (최근 12개월)';
+    const wrap = document.createElement('div'); wrap.className = 'tablewrap';
+    const tbl2 = document.createElement('table'); tbl2.className = 'cxt';
+    const hr = document.createElement('tr');
+    for(const t of ['단지', '거래', '평균 거래가', '평균 전용', '준공']){
+      const th = document.createElement('th'); th.textContent = t; hr.append(th);
+    }
+    tbl2.append(hr);
+    for(const [name, c] of entries){
+      const tr = document.createElement('tr');
+      const vals = [name, c.n + '건', fmtEok(c.wsum / c.n), (c.asum / c.n).toFixed(1) + '㎡', c.built || '—'];
+      for(const v of vals){ const td = document.createElement('td'); td.textContent = v; tr.append(td); }
+      tbl2.append(tr);
+    }
+    wrap.append(tbl2);
+    cxHost.append(h, wrap);
+  }
+
+  // 계산기 연동
+  const stat = row?.b?.[b];
+  const btn = $('#btnHandoff');
+  if(stat){
+    btn.style.display = '';
+    btn.textContent = `이 중위가(${fmtEok(stat[1])})로 계산기 시뮬레이션 →`;
+    $('#handoffNote').textContent = `${dong} · ${BUCKET_LABEL[b]} 최근 3개월 중위가를 매입 금액으로 넘깁니다`;
+    btn.onclick = () => {
+      try{
+        localStorage.setItem('cfc:handoff:v1', JSON.stringify({
+          price: stat[1] * 10000, // 만원 → 원
+          label: `${row.sido} ${row.sgg} ${dong} ${BUCKET_LABEL[b]} 중위가`
+        }));
+      }catch(e){}
+      location.href = 'index.html';
+    };
+  }else{
+    btn.style.display = 'none';
+    $('#handoffNote').textContent = '';
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
